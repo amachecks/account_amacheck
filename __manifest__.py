@@ -13,7 +13,7 @@ Features:
 - Detailed error reporting
     """,
     "author": "AMA Systems",
-    "website": "https://www.amasystems.net",
+    "website": "https://www.amachecks.com",
     "category": "Accounting/Payment",
     "license": "OPL-1",
     "application": True,
