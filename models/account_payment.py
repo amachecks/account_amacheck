@@ -264,7 +264,8 @@ class AccountPayment(models.Model):
         params = self.env["ir.config_parameter"].sudo()
 
         api_key = params.get_param("account_amacheck.api_key")
-        base_url = params.get_param("account_amacheck.base_url") or "https://test.onlinecheckwriter.com/api/v3"
+        env = params.get_param("account_amacheck.environment", "sandbox")
+        base_url = "https://app.onlinecheckwriter.com/api/v3" if env == "production" else "https://test.onlinecheckwriter.com/api/v3"
         quickpay_url = base_url.rstrip("/") + "/quickpay/mailcheck"
 
         for payment in self:

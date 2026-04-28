@@ -9,8 +9,9 @@ class ResConfigSettings(models.TransientModel):
         config_parameter="account_amacheck.api_key"
     )
 
-    account_amacheck_base_url = fields.Char(
-        string="AMACheck Base URL",
-        config_parameter="account_amacheck.base_url",
-        default="https://test.onlinecheckwriter.com/api/v3"
+    account_amacheck_environment = fields.Selection(
+        selection=[("sandbox", "Sandbox"), ("production", "Production")],
+        string="AMACheck Environment",
+        config_parameter="account_amacheck.environment",
+        default="sandbox",
     )
