@@ -1,6 +1,6 @@
 {
     "name": "AMACheck",
-    "version": "17.0.1.0.0",
+    "version": "18.0.1.0.0",
     "summary": "Send vendor checks by mail via AMACheck / Online Check Writer",
     "description": """
 Send vendor payments as physical checks via the AMACheck (Online Check Writer) API.
