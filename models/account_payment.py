@@ -1,10 +1,11 @@
 from odoo import models, fields, api
 from odoo.exceptions import UserError
+from .amacheck_mixin import amacheck_request_json
 import json
 
 
 class AccountPayment(models.Model):
-    _inherit = ["account.payment", "amacheck.mixin"]
+    _inherit = "account.payment"
 
     amacheck_state = fields.Selection([
         ("ready", "Ready"),
@@ -74,7 +75,7 @@ class AccountPayment(models.Model):
             ]
         }
 
-        result = self._amacheck_request_json(
+        result = amacheck_request_json(
             payee_url,
             api_key,
             payload,
@@ -122,7 +123,7 @@ class AccountPayment(models.Model):
 
         payload = self._amacheck_payee_payload(partner)
 
-        result = self._amacheck_request_json(
+        result = amacheck_request_json(
             payee_url,
             api_key,
             payload,
@@ -288,7 +289,7 @@ class AccountPayment(models.Model):
                     payee_id,
                 )
 
-                result = payment._amacheck_request_json(
+                result = amacheck_request_json(
                     quickpay_url,
                     api_key,
                     payload,

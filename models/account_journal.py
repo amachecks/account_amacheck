@@ -1,10 +1,11 @@
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError, UserError
+from .amacheck_mixin import amacheck_request_json
 import json
 
 
 class AccountJournal(models.Model):
-    _inherit = ["account.journal", "amacheck.mixin"]
+    _inherit = "account.journal"
 
     amacheck_bank_account_id = fields.Char(string="AMACheck Bank Account ID", copy=False)
     amacheck_is_default = fields.Boolean(string="Default AMACheck Account", copy=False)
@@ -151,7 +152,7 @@ class AccountJournal(models.Model):
                 bank_url = base_url.rstrip("/") + "/bankAccounts"
                 payload = journal._amacheck_bank_account_payload()
 
-                result = journal._amacheck_request_json(
+                result = amacheck_request_json(
                     bank_url,
                     api_key,
                     payload,
