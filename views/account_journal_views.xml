@@ -1,0 +1,36 @@
+<odoo>
+    <record id="view_journal_form_amacheck" model="ir.ui.view">
+        <field name="name">account.journal.form.amacheck</field>
+        <field name="model">account.journal</field>
+        <field name="inherit_id" ref="account.view_account_journal_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="inside">
+
+                <group string="AMACheck Settings" invisible="type != 'bank'">
+                    <group>
+                        <field name="x_amacheck_bank_account_id" readonly="1"/>
+                        <field name="x_amacheck_is_default" widget="boolean_toggle"/>
+                    </group>
+
+                    <group>
+                        <field name="x_amacheck_sync_state" readonly="1"/>
+                        <field name="x_amacheck_sync_error" readonly="1"/>
+                    </group>
+
+                    <group>
+                        <button name="action_amacheck_test_connection"
+                                string="Test AMACheck Connection"
+                                type="object"
+                                class="btn-secondary"/>
+
+                        <button name="action_amacheck_sync_bank_account"
+                                string="Sync AMACheck Bank Account"
+                                type="object"
+                                class="btn-primary"/>
+                    </group>
+                </group>
+
+            </xpath>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,22 @@
+<odoo>
+    <record id="res_config_settings_view_form_amacheck" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.amacheck</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="AMACheck" string="AMACheck" name="account_amacheck">
+                    <block title="AMACheck API Settings">
+                        <setting string="API Key" help="AMACheck API key used to connect to the check service.">
+                            <field name="account_amacheck_api_key" password="True"/>
+                        </setting>
+
+                        <setting string="Base URL" help="Sandbox or production AMACheck API URL.">
+                            <field name="account_amacheck_base_url"/>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+</odoo>
