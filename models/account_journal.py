@@ -75,47 +75,69 @@ class AccountJournal(models.Model):
         missing = []
 
         if self.type != "bank":
-            missing.append("Journal must be a Bank journal")
+            missing.append("Journal type must be 'Bank' (currently '%s')" % self.type)
 
         bank_account = self.bank_account_id
 
         if not bank_account:
-            missing.append("Odoo Bank Account")
+            missing.append(
+                "Bank Account — set this on the journal under the 'Bank Account' field "
+                "(Accounting > Configuration > Journals > %s)" % self.name
+            )
         else:
             if not bank_account.acc_number:
-                missing.append("Bank Account Number")
+                missing.append(
+                    "Account Number — open the bank account '%s' and fill in the Account Number"
+                    % (bank_account.display_name or bank_account.id)
+                )
 
             bank = bank_account.bank_id
 
             if not bank:
-                missing.append("Bank")
+                missing.append(
+                    "Bank Institution — open bank account '%s', then set the Bank field "
+                    "(this holds the routing number and bank address)"
+                    % (bank_account.display_name or bank_account.id)
+                )
             else:
                 if not bank.name:
-                    missing.append("Bank Name")
+                    missing.append("Bank Name — set on the bank record '%s'" % bank.id)
                 if not bank.bic:
-                    missing.append("Routing Number / BIC")
+                    missing.append(
+                        "Routing Number (BIC) — set on the bank record '%s' "
+                        "(Accounting > Configuration > Banks)" % (bank.name or bank.id)
+                    )
                 if not bank.street:
-                    missing.append("Bank Address")
+                    missing.append(
+                        "Bank Street Address — set on the bank record '%s'" % (bank.name or bank.id)
+                    )
                 if not bank.city:
-                    missing.append("Bank City")
+                    missing.append(
+                        "Bank City — set on the bank record '%s'" % (bank.name or bank.id)
+                    )
                 if not bank.zip:
-                    missing.append("Bank ZIP")
+                    missing.append(
+                        "Bank ZIP — set on the bank record '%s'" % (bank.name or bank.id)
+                    )
 
         company_partner = self.company_id.partner_id
 
         if not company_partner.street:
-            missing.append("Company Street Address")
+            missing.append(
+                "Company Street Address — set on the company '%s' "
+                "(Settings > Companies)" % self.company_id.name
+            )
         if not company_partner.city:
-            missing.append("Company City")
+            missing.append("Company City — set on the company '%s'" % self.company_id.name)
         if not company_partner.state_id:
-            missing.append("Company State")
+            missing.append("Company State — set on the company '%s'" % self.company_id.name)
         if not company_partner.zip:
-            missing.append("Company ZIP")
+            missing.append("Company ZIP — set on the company '%s'" % self.company_id.name)
 
         if missing:
             raise ValidationError(
-                "Bank journal is missing required AMACheck bank fields: %s"
-                % ", ".join(missing)
+                "Journal '%s' is missing the following required fields for AMACheck:\n\n- %s"
+                % (self.name, "\n- ".join(missing))
             )
 
     def _amacheck_bank_account_payload(self):
