@@ -1,28 +1,26 @@
 from odoo import models, fields, api
-from odoo.exceptions import ValidationError
+from odoo.exceptions import ValidationError, UserError
 import json
-import urllib.request
-import urllib.error
 
 
 class AccountJournal(models.Model):
-    _inherit = "account.journal"
+    _inherit = ["account.journal", "amacheck.mixin"]
 
-    x_amacheck_bank_account_id = fields.Char(string="AMACheck Bank Account ID", copy=False)
-    x_amacheck_is_default = fields.Boolean(string="Default AMACheck Account", copy=False)
+    amacheck_bank_account_id = fields.Char(string="AMACheck Bank Account ID", copy=False)
+    amacheck_is_default = fields.Boolean(string="Default AMACheck Account", copy=False)
 
-    x_amacheck_sync_state = fields.Selection([
+    amacheck_sync_state = fields.Selection([
         ("not_synced", "Not Synced"),
         ("synced", "Synced"),
         ("failed", "Failed"),
     ], string="AMACheck Sync Status", default="not_synced", copy=False)
 
-    x_amacheck_sync_error = fields.Text(string="AMACheck Sync Error", copy=False)
+    amacheck_sync_error = fields.Text(string="AMACheck Sync Error", copy=False)
 
-    @api.constrains("x_amacheck_is_default", "type", "company_id")
+    @api.constrains("amacheck_is_default", "type", "company_id")
     def _check_default_amacheck_account(self):
         for journal in self:
-            if not journal.x_amacheck_is_default:
+            if not journal.amacheck_is_default:
                 continue
 
             if journal.type != "bank":
@@ -30,44 +28,12 @@ class AccountJournal(models.Model):
 
             existing = self.search([
                 ("id", "!=", journal.id),
-                ("x_amacheck_is_default", "=", True),
+                ("amacheck_is_default", "=", True),
                 ("company_id", "=", journal.company_id.id),
             ], limit=1)
 
             if existing:
                 raise ValidationError("Only one default AMACheck account is allowed per company.")
-
-    def _amacheck_request_json(self, url, api_key, payload=None, method="POST"):
-        data = json.dumps(payload).encode("utf-8") if payload is not None else None
-
-        req = urllib.request.Request(
-            url,
-            data=data,
-            headers={
-                "Authorization": "Bearer " + api_key,
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
-            method=method,
-        )
-
-        try:
-            with urllib.request.urlopen(req, timeout=15) as response:
-                body = response.read().decode("utf-8")
-                return json.loads(body) if body else {}
-
-        except urllib.error.HTTPError as e:
-            try:
-                error_body = e.read().decode("utf-8")
-                return json.loads(error_body) if error_body else {
-                    "success": False,
-                    "errorMsg": str(e),
-                }
-            except Exception:
-                return {
-                    "success": False,
-                    "errorMsg": str(e),
-                }
 
     def _amacheck_validate_bank_journal(self):
         self.ensure_one()
@@ -178,7 +144,7 @@ class AccountJournal(models.Model):
         for journal in self:
             try:
                 if not api_key:
-                    raise Exception("AMACheck API key is not configured.")
+                    raise UserError("AMACheck API key is not configured.")
 
                 journal._amacheck_validate_bank_journal()
 
@@ -195,9 +161,9 @@ class AccountJournal(models.Model):
                 # Duplicate case = success
                 if result.get("success") is False and result.get("bankAccountId"):
                     journal.write({
-                        "x_amacheck_bank_account_id": result.get("bankAccountId"),
-                        "x_amacheck_sync_state": "synced",
-                        "x_amacheck_sync_error": (
+                        "amacheck_bank_account_id": result.get("bankAccountId"),
+                        "amacheck_sync_state": "synced",
+                        "amacheck_sync_error": (
                             "Bank account already existed in AMACheck. "
                             "Saved ID: %s" % result.get("bankAccountId")
                         ),
@@ -207,8 +173,8 @@ class AccountJournal(models.Model):
                 # Failure case with no ID
                 if result.get("success") is False:
                     journal.write({
-                        "x_amacheck_sync_state": "failed",
-                        "x_amacheck_sync_error": (
+                        "amacheck_sync_state": "failed",
+                        "amacheck_sync_error": (
                             "AMACheck bank account sync failed.\n\n"
                             "Payload:\n%s\n\nResponse:\n%s"
                             % (
@@ -239,21 +205,21 @@ class AccountJournal(models.Model):
 
                 if not bank_account_id:
                     journal.write({
-                        "x_amacheck_sync_state": "failed",
-                        "x_amacheck_sync_error": json.dumps(result, indent=2),
+                        "amacheck_sync_state": "failed",
+                        "amacheck_sync_error": json.dumps(result, indent=2),
                     })
                     continue
 
                 journal.write({
-                    "x_amacheck_bank_account_id": bank_account_id,
-                    "x_amacheck_sync_state": "synced",
-                    "x_amacheck_sync_error": False,
+                    "amacheck_bank_account_id": bank_account_id,
+                    "amacheck_sync_state": "synced",
+                    "amacheck_sync_error": False,
                 })
 
             except Exception as e:
                 journal.write({
-                    "x_amacheck_sync_state": "failed",
-                    "x_amacheck_sync_error": str(e),
+                    "amacheck_sync_state": "failed",
+                    "amacheck_sync_error": str(e),
                 })
 
         return True
@@ -265,12 +231,12 @@ class AccountJournal(models.Model):
         for journal in self:
             if api_key:
                 journal.write({
-                    "x_amacheck_sync_error": "AMACheck API key is configured.",
+                    "amacheck_sync_error": "AMACheck API key is configured.",
                 })
             else:
                 journal.write({
-                    "x_amacheck_sync_state": "failed",
-                    "x_amacheck_sync_error": "AMACheck API key is not configured.",
+                    "amacheck_sync_state": "failed",
+                    "amacheck_sync_error": "AMACheck API key is not configured.",
                 })
 
         return True

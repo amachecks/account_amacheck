@@ -1,23 +1,22 @@
 from odoo import models, fields, api
+from odoo.exceptions import UserError
 import json
-import urllib.request
-import urllib.error
 
 
 class AccountPayment(models.Model):
-    _inherit = "account.payment"
+    _inherit = ["account.payment", "amacheck.mixin"]
 
-    x_amacheck_state = fields.Selection([
+    amacheck_state = fields.Selection([
         ("ready", "Ready"),
         ("sent", "Sent"),
         ("failed", "Failed"),
     ], string="AMACheck Status")
 
-    x_amacheck_zil_id = fields.Char(string="AMA Check ID")
-    x_amacheck_sent_at = fields.Datetime(string="AMACheck Sent At")
-    x_amacheck_error = fields.Text(string="AMACheck Error")
+    amacheck_zil_id = fields.Char(string="AMA Check ID")
+    amacheck_sent_at = fields.Datetime(string="AMACheck Sent At")
+    amacheck_error = fields.Text(string="AMACheck Error")
 
-    x_amacheck_journal_id = fields.Many2one(
+    amacheck_journal_id = fields.Many2one(
         "account.journal",
         string="AMACheck Account",
         domain="[('type', '=', 'bank')]",
@@ -27,39 +26,7 @@ class AccountPayment(models.Model):
     @api.onchange("journal_id")
     def _onchange_amacheck_journal_id(self):
         if self.journal_id and self.journal_id.type == "bank":
-            self.x_amacheck_journal_id = self.journal_id
-
-    def _amacheck_request_json(self, url, api_key, payload=None, method="POST"):
-        data = json.dumps(payload).encode("utf-8") if payload is not None else None
-
-        req = urllib.request.Request(
-            url,
-            data=data,
-            headers={
-                "Authorization": "Bearer " + api_key,
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
-            method=method,
-        )
-
-        try:
-            with urllib.request.urlopen(req, timeout=15) as response:
-                body = response.read().decode("utf-8")
-                return json.loads(body) if body else {}
-
-        except urllib.error.HTTPError as e:
-            try:
-                error_body = e.read().decode("utf-8")
-                return json.loads(error_body) if error_body else {
-                    "success": False,
-                    "errorMsg": str(e),
-                }
-            except Exception:
-                return {
-                    "success": False,
-                    "errorMsg": str(e),
-                }
+            self.amacheck_journal_id = self.journal_id
 
     def _amacheck_validate_partner(self, partner):
         missing = []
@@ -78,9 +45,9 @@ class AccountPayment(models.Model):
             missing.append("Country")
 
         if missing:
-            raise Exception(
-                "Vendor is missing required AMACheck mailing fields: %s"
-                % ", ".join(missing)
+            raise UserError(
+                "Vendor '%s' is missing required fields for AMACheck: %s"
+                % (partner.name or "(no name)", ", ".join(missing))
             )
 
     def _amacheck_payee_payload(self, partner):
@@ -115,9 +82,7 @@ class AccountPayment(models.Model):
         )
 
         if result.get("success") is False and result.get("payeeId"):
-            partner.write({
-                "x_amacheck_payee_id": result.get("payeeId"),
-            })
+            partner.write({"amacheck_payee_id": result.get("payeeId")})
             return result.get("payeeId")
 
         payees = result.get("data", {}).get("payees") or result.get("payees") or []
@@ -139,7 +104,7 @@ class AccountPayment(models.Model):
         )
 
         if not payee_id:
-            raise Exception(
+            raise UserError(
                 "Failed to create AMACheck payee.\n\nPayload:\n%s\n\nResponse:\n%s"
                 % (
                     json.dumps(payload, indent=2),
@@ -147,14 +112,12 @@ class AccountPayment(models.Model):
                 )
             )
 
-        partner.write({
-            "x_amacheck_payee_id": payee_id,
-        })
+        partner.write({"amacheck_payee_id": payee_id})
 
         return payee_id
 
     def _amacheck_update_payee(self, partner, api_key, base_url):
-        payee_id = partner.x_amacheck_payee_id
+        payee_id = partner.amacheck_payee_id
         payee_url = base_url.rstrip("/") + "/payees/" + payee_id
 
         payload = self._amacheck_payee_payload(partner)
@@ -167,7 +130,7 @@ class AccountPayment(models.Model):
         )
 
         if result.get("success") is False:
-            raise Exception(
+            raise UserError(
                 "Failed to update AMACheck payee.\n\nPayload:\n%s\n\nResponse:\n%s"
                 % (
                     json.dumps(payload, indent=2),
@@ -180,56 +143,48 @@ class AccountPayment(models.Model):
     def _amacheck_get_or_create_payee_id(self, partner, api_key, base_url):
         self._amacheck_validate_partner(partner)
 
-        if not partner.x_amacheck_payee_id:
-            return self._amacheck_create_payee(
-                partner,
-                api_key,
-                base_url,
-            )
+        if not partner.amacheck_payee_id:
+            return self._amacheck_create_payee(partner, api_key, base_url)
 
-        self._amacheck_update_payee(
-            partner,
-            api_key,
-            base_url,
-        )
+        self._amacheck_update_payee(partner, api_key, base_url)
 
-        return partner.x_amacheck_payee_id
+        return partner.amacheck_payee_id
 
     def _amacheck_get_bank_journal(self):
         self.ensure_one()
 
-        if self.x_amacheck_journal_id and self.x_amacheck_journal_id.type == "bank":
-            return self.x_amacheck_journal_id
+        if self.amacheck_journal_id and self.amacheck_journal_id.type == "bank":
+            return self.amacheck_journal_id
 
         if self.journal_id and self.journal_id.type == "bank":
             return self.journal_id
 
         default_journal = self.env["account.journal"].search([
             ("type", "=", "bank"),
-            ("x_amacheck_is_default", "=", True),
+            ("amacheck_is_default", "=", True),
             ("company_id", "=", self.company_id.id),
         ], limit=1)
 
         if default_journal:
             return default_journal
 
-        raise Exception(
+        raise UserError(
             "No AMACheck bank account is available. "
             "Select a bank journal or mark one bank journal as the default AMACheck account."
         )
 
     def _amacheck_get_or_create_bank_account_id(self, journal, api_key, base_url):
-        if journal.x_amacheck_bank_account_id:
-            return journal.x_amacheck_bank_account_id
+        if journal.amacheck_bank_account_id:
+            return journal.amacheck_bank_account_id
 
         journal.action_amacheck_sync_bank_account()
 
-        if journal.x_amacheck_bank_account_id:
-            return journal.x_amacheck_bank_account_id
+        if journal.amacheck_bank_account_id:
+            return journal.amacheck_bank_account_id
 
-        raise Exception(
+        raise UserError(
             "Unable to create or locate AMACheck bank account: %s"
-            % (journal.x_amacheck_sync_error or "Unknown error")
+            % (journal.amacheck_sync_error or "Unknown error")
         )
 
     def _amacheck_quickpay_payload(self, payment, bank_account_id, payee_id=None):
@@ -269,44 +224,44 @@ class AccountPayment(models.Model):
         quickpay_url = base_url.rstrip("/") + "/quickpay/mailcheck"
 
         for payment in self:
-            if payment.x_amacheck_state == "sent" or payment.x_amacheck_zil_id:
+            if payment.amacheck_state == "sent" or payment.amacheck_zil_id:
                 payment.write({
-                    "x_amacheck_error": "Duplicate send blocked. This payment already has an AMA Check ID.",
+                    "amacheck_error": "Duplicate send blocked. This payment already has an AMA Check ID.",
                 })
                 continue
 
             if not api_key:
                 payment.write({
-                    "x_amacheck_state": "failed",
-                    "x_amacheck_error": "AMACheck API key is not configured.",
+                    "amacheck_state": "failed",
+                    "amacheck_error": "AMACheck API key is not configured.",
                 })
                 continue
 
             if payment.payment_type != "outbound":
                 payment.write({
-                    "x_amacheck_state": "failed",
-                    "x_amacheck_error": "AMACheck only supports outbound payments.",
+                    "amacheck_state": "failed",
+                    "amacheck_error": "AMACheck only supports outbound payments.",
                 })
                 continue
 
             if payment.partner_type != "supplier":
                 payment.write({
-                    "x_amacheck_state": "failed",
-                    "x_amacheck_error": "AMACheck only supports vendor payments.",
+                    "amacheck_state": "failed",
+                    "amacheck_error": "AMACheck only supports vendor payments.",
                 })
                 continue
 
             if payment.amount <= 0:
                 payment.write({
-                    "x_amacheck_state": "failed",
-                    "x_amacheck_error": "Payment amount must be greater than zero.",
+                    "amacheck_state": "failed",
+                    "amacheck_error": "Payment amount must be greater than zero.",
                 })
                 continue
 
             if not payment.partner_id:
                 payment.write({
-                    "x_amacheck_state": "failed",
-                    "x_amacheck_error": "Payment is missing a vendor.",
+                    "amacheck_state": "failed",
+                    "amacheck_error": "Payment is missing a vendor.",
                 })
                 continue
 
@@ -342,8 +297,8 @@ class AccountPayment(models.Model):
 
                 if result.get("success") is False:
                     payment.write({
-                        "x_amacheck_state": "failed",
-                        "x_amacheck_error": (
+                        "amacheck_state": "failed",
+                        "amacheck_error": (
                             "AMACheck check send failed.\n\nPayload:\n%s\n\nResponse:\n%s"
                             % (
                                 json.dumps(payload, indent=2),
@@ -375,8 +330,8 @@ class AccountPayment(models.Model):
 
                 if not check_id:
                     payment.write({
-                        "x_amacheck_state": "failed",
-                        "x_amacheck_error": (
+                        "amacheck_state": "failed",
+                        "amacheck_error": (
                             "AMACheck check was submitted but no check ID was returned.\n\n"
                             "Payload:\n%s\n\nResponse:\n%s"
                             % (
@@ -388,17 +343,17 @@ class AccountPayment(models.Model):
                     continue
 
                 payment.write({
-                    "x_amacheck_state": "sent",
-                    "x_amacheck_zil_id": check_id,
-                    "x_amacheck_sent_at": fields.Datetime.now(),
-                    "x_amacheck_error": False,
-                    "x_amacheck_journal_id": bank_journal.id,
+                    "amacheck_state": "sent",
+                    "amacheck_zil_id": check_id,
+                    "amacheck_sent_at": fields.Datetime.now(),
+                    "amacheck_error": False,
+                    "amacheck_journal_id": bank_journal.id,
                 })
 
             except Exception as e:
                 payment.write({
-                    "x_amacheck_state": "failed",
-                    "x_amacheck_error": str(e),
+                    "amacheck_state": "failed",
+                    "amacheck_error": str(e),
                 })
 
         return True

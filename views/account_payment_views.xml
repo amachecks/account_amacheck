@@ -12,12 +12,12 @@
             </xpath>
 
             <xpath expr="//sheet" position="inside">
-		<group string="AMACheck">
-		    <field name="x_amacheck_state"/>
-		    <field name="x_amacheck_zil_id"/>
-		    <field name="x_amacheck_sent_at"/>
-		    <field name="x_amacheck_error"/>
-		</group>
+                <group string="AMACheck">
+                    <field name="amacheck_state"/>
+                    <field name="amacheck_zil_id"/>
+                    <field name="amacheck_sent_at"/>
+                    <field name="amacheck_error"/>
+                </group>
             </xpath>
         </field>
     </record>
