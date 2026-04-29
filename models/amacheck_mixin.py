@@ -31,17 +31,34 @@ def amacheck_get_credentials(license_code):
         with urllib.request.urlopen(req, timeout=15) as response:
             result = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
-        raise Exception("AMAChecks license server returned an error: %s" % str(e))
+        try:
+            body = json.loads(e.read().decode("utf-8"))
+            error_msg = body.get("error", str(e))
+        except Exception:
+            error_msg = str(e)
+        raise Exception(_license_error_message(error_msg))
     except Exception as e:
         raise Exception("Could not reach the AMAChecks license server: %s" % str(e))
 
     if not result.get("success"):
-        raise Exception(
-            "AMAChecks license validation failed: %s"
-            % result.get("error", "Unknown error")
-        )
+        raise Exception(_license_error_message(result.get("error", "Unknown error")))
 
     return result.get("APICode"), result.get("ChecksLeft", 0)
+
+
+def _license_error_message(error):
+    error_lower = (error or "").lower()
+    if "inactive" in error_lower:
+        return (
+            "Your AMAChecks license is inactive. "
+            "Please contact support at amachecks.com."
+        )
+    if "invalid" in error_lower:
+        return (
+            "Invalid AMAChecks license code. "
+            "Please check the License Code in Settings > AMACheck."
+        )
+    return "AMAChecks license validation failed: %s" % error
 
 
 def amacheck_request_json(url, api_code, payload=None, method="POST"):
