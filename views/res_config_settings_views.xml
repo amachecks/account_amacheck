@@ -15,6 +15,25 @@
                             <field name="account_amacheck_environment" widget="radio"/>
                         </setting>
                     </block>
+
+                    <block title="AMACheck Status">
+                        <setting string="License Code" help="Your AMACheck license code used to track eCheck balance.">
+                            <field name="account_amacheck_license_code"/>
+                            <button name="action_amacheck_refresh_status"
+                                    string="Refresh Balance"
+                                    type="object"
+                                    class="btn-secondary ms-2"/>
+                        </setting>
+
+                        <setting string="eChecks Available">
+                            <field name="account_amacheck_checks_left" readonly="1"/>
+                            <div class="mt8">
+                                <a href="https://amachecks.com/product/echeck-bundles/"
+                                   target="_blank"
+                                   class="btn btn-link p-0">Buy More eChecks</a>
+                            </div>
+                        </setting>
+                    </block>
                 </app>
             </xpath>
         </field>
