@@ -139,7 +139,7 @@ class AccountJournal(models.Model):
     def action_amacheck_sync_bank_account(self):
         params = self.env["ir.config_parameter"].sudo()
         api_key = params.get_param("account_amacheck.api_key")
-        env = params.get_param("account_amacheck.environment", "sandbox")
+        env = params.get_param("account_amacheck.environment", "production")
         base_url = "https://app.onlinecheckwriter.com/api/v3" if env == "production" else "https://test.onlinecheckwriter.com/api/v3"
 
         for journal in self:

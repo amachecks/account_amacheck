@@ -13,10 +13,11 @@
 
             <xpath expr="//sheet" position="inside">
                 <group string="AMACheck">
-                    <field name="amacheck_state"/>
-                    <field name="amacheck_zil_id"/>
-                    <field name="amacheck_sent_at"/>
-                    <field name="amacheck_error"/>
+                    <field name="amacheck_state" string="Status"/>
+                    <field name="amacheck_zil_id" string="Check ID"/>
+                    <field name="amacheck_check_number" string="Check Number"/>
+                    <field name="amacheck_sent_at" string="Sent On"/>
+                    <field name="amacheck_error" string="Errors" style="color: red;"/>
                 </group>
             </xpath>
         </field>

@@ -13,5 +13,5 @@ class ResConfigSettings(models.TransientModel):
         selection=[("sandbox", "Sandbox"), ("production", "Production")],
         string="AMACheck Environment",
         config_parameter="account_amacheck.environment",
-        default="sandbox",
+        default="production",
     )

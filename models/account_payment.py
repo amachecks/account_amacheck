@@ -11,11 +11,12 @@ class AccountPayment(models.Model):
         ("ready", "Ready"),
         ("sent", "Sent"),
         ("failed", "Failed"),
-    ], string="AMACheck Status")
+    ], string="Status")
 
-    amacheck_zil_id = fields.Char(string="AMA Check ID")
-    amacheck_sent_at = fields.Datetime(string="AMACheck Sent At")
-    amacheck_error = fields.Text(string="AMACheck Error")
+    amacheck_zil_id = fields.Char(string="Check ID")
+    amacheck_check_number = fields.Char(string="Check Number", copy=False)
+    amacheck_sent_at = fields.Datetime(string="Sent On")
+    amacheck_error = fields.Text(string="Errors")
 
     amacheck_journal_id = fields.Many2one(
         "account.journal",
@@ -220,7 +221,7 @@ class AccountPayment(models.Model):
         params = self.env["ir.config_parameter"].sudo()
 
         api_key = params.get_param("account_amacheck.api_key")
-        env = params.get_param("account_amacheck.environment", "sandbox")
+        env = params.get_param("account_amacheck.environment", "production")
         base_url = "https://app.onlinecheckwriter.com/api/v3" if env == "production" else "https://test.onlinecheckwriter.com/api/v3"
         quickpay_url = base_url.rstrip("/") + "/quickpay/mailcheck"
 
@@ -312,11 +313,16 @@ class AccountPayment(models.Model):
                 checks = result.get("data", {}).get("checks") or result.get("checks") or []
 
                 check_id = False
+                check_number = False
 
                 if checks:
                     check_id = (
                         checks[0].get("checkId")
                         or checks[0].get("id")
+                    )
+                    check_number = (
+                        checks[0].get("checkNumber")
+                        or checks[0].get("check_number")
                     )
 
                 check_id = (
@@ -327,6 +333,14 @@ class AccountPayment(models.Model):
                     or result.get("id")
                     or result.get("data", {}).get("paymentId")
                     or result.get("paymentId")
+                )
+
+                check_number = (
+                    check_number
+                    or result.get("data", {}).get("checkNumber")
+                    or result.get("data", {}).get("check_number")
+                    or result.get("checkNumber")
+                    or result.get("check_number")
                 )
 
                 if not check_id:
@@ -346,6 +360,7 @@ class AccountPayment(models.Model):
                 payment.write({
                     "amacheck_state": "sent",
                     "amacheck_zil_id": check_id,
+                    "amacheck_check_number": check_number or False,
                     "amacheck_sent_at": fields.Datetime.now(),
                     "amacheck_error": False,
                     "amacheck_journal_id": bank_journal.id,
