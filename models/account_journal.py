@@ -1,6 +1,6 @@
 from odoo import models, fields
 from odoo.exceptions import ValidationError, UserError
-from .amacheck_mixin import amacheck_request_json
+from .amacheck_mixin import amacheck_request_json, amacheck_get_credentials
 import json
 
 
@@ -119,15 +119,22 @@ class AccountJournal(models.Model):
 
     def action_amacheck_sync_bank_account(self):
         params = self.env["ir.config_parameter"].sudo()
-        api_key = params.get_param("account_amacheck.api_key")
+        license_code = params.get_param("account_amacheck.license_code")
         env = params.get_param("account_amacheck.environment", "production")
         base_url = "https://app.onlinecheckwriter.com/api/v3" if env == "production" else "https://test.onlinecheckwriter.com/api/v3"
 
+        try:
+            api_code, _ = amacheck_get_credentials(license_code)
+        except Exception as e:
+            for journal in self:
+                journal.write({
+                    "amacheck_sync_state": "failed",
+                    "amacheck_sync_error": str(e),
+                })
+            return True
+
         for journal in self:
             try:
-                if not api_key:
-                    raise UserError("AMACheck API key is not configured.")
-
                 journal._amacheck_validate_bank_journal()
 
                 bank_url = base_url.rstrip("/") + "/bankAccounts"
@@ -135,7 +142,7 @@ class AccountJournal(models.Model):
 
                 result = amacheck_request_json(
                     bank_url,
-                    api_key,
+                    api_code,
                     payload,
                     method="POST",
                 )
@@ -208,17 +215,20 @@ class AccountJournal(models.Model):
 
     def action_amacheck_test_connection(self):
         params = self.env["ir.config_parameter"].sudo()
-        api_key = params.get_param("account_amacheck.api_key")
+        license_code = params.get_param("account_amacheck.license_code")
 
         for journal in self:
-            if api_key:
+            try:
+                api_code, checks_left = amacheck_get_credentials(license_code)
                 journal.write({
-                    "amacheck_sync_error": "AMACheck API key is configured.",
+                    "amacheck_sync_error": (
+                        "AMAChecks license is valid. eChecks available: %d" % checks_left
+                    ),
                 })
-            else:
+            except Exception as e:
                 journal.write({
                     "amacheck_sync_state": "failed",
-                    "amacheck_sync_error": "AMACheck API key is not configured.",
+                    "amacheck_sync_error": str(e),
                 })
 
         return True
