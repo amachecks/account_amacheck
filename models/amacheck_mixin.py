@@ -5,6 +5,12 @@ import urllib.error
 _LICENSE_API_URL = "https://www.wattcollc.com/amachecksapi/api_validate_license.php"
 _RECORD_CHECK_URL = "https://www.wattcollc.com/amachecksapi/api_record_check.php"
 _LICENSE_API_KEY = "8f3c91d7a4b2e6c9f8a1d3b7c5e2f4a9d6c3b1e7f9a2c4d6b8e1f3a5c7d9b2"
+_LICENSE_HEADERS = {
+    "X-API-KEY": _LICENSE_API_KEY,
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "User-Agent": "AMAChecks-Odoo/1.0",
+}
 
 
 class AMACheckLicenseInactiveError(Exception):
@@ -25,10 +31,7 @@ def amacheck_get_credentials(license_code):
     req = urllib.request.Request(
         _LICENSE_API_URL,
         data=payload,
-        headers={
-            "X-API-KEY": _LICENSE_API_KEY,
-            "Content-Type": "application/json",
-        },
+        headers=_LICENSE_HEADERS,
         method="POST",
     )
 
@@ -72,10 +75,7 @@ def amacheck_record_check(license_code):
     req = urllib.request.Request(
         _RECORD_CHECK_URL,
         data=payload,
-        headers={
-            "X-API-KEY": _LICENSE_API_KEY,
-            "Content-Type": "application/json",
-        },
+        headers=_LICENSE_HEADERS,
         method="POST",
     )
     try:
