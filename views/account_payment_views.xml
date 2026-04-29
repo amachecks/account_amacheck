@@ -12,12 +12,20 @@
             </xpath>
 
             <xpath expr="//sheet" position="inside">
+                <field name="amacheck_inactive" invisible="1"/>
                 <group string="AMACheck">
                     <field name="amacheck_state" string="Status"/>
                     <field name="amacheck_zil_id" string="Check ID"/>
                     <field name="amacheck_check_number" string="Check Number"/>
                     <field name="amacheck_sent_at" string="Sent On"/>
-                    <field name="amacheck_error" string="Errors" style="color: red;"/>
+                    <field name="amacheck_error" string="Errors" style="color: red;"
+                           invisible="amacheck_inactive"/>
+                    <div invisible="not amacheck_inactive" style="color: red;">
+                        Your AMAChecks subscription is inactive. Please
+                        <a href="https://amachecks.com/shop/"
+                           target="_blank"
+                           style="font-weight: bold; color: #0d6efd;">RENEW</a>
+                    </div>
                 </group>
             </xpath>
         </field>

@@ -1,6 +1,6 @@
 from odoo import models, fields
 from odoo.exceptions import UserError
-from .amacheck_mixin import amacheck_request_json, amacheck_get_credentials
+from .amacheck_mixin import amacheck_request_json, amacheck_get_credentials, AMACheckLicenseInactiveError
 import json
 
 
@@ -17,6 +17,7 @@ class AccountPayment(models.Model):
     amacheck_check_number = fields.Char(string="Check Number", copy=False)
     amacheck_sent_at = fields.Datetime(string="Sent On")
     amacheck_error = fields.Text(string="Errors")
+    amacheck_inactive = fields.Boolean(string="License Inactive", default=False, copy=False)
 
     def _amacheck_validate_partner(self, partner):
         missing = []
@@ -180,15 +181,28 @@ class AccountPayment(models.Model):
         # Validate license and check balance before processing any payments
         try:
             api_code, checks_left = amacheck_get_credentials(license_code)
+        except AMACheckLicenseInactiveError:
+            for payment in self:
+                payment.write({
+                    "amacheck_state": "failed",
+                    "amacheck_inactive": True,
+                    "amacheck_error": False,
+                })
+            return True
         except Exception as e:
             for payment in self:
-                payment.write({"amacheck_state": "failed", "amacheck_error": str(e)})
+                payment.write({
+                    "amacheck_state": "failed",
+                    "amacheck_inactive": False,
+                    "amacheck_error": str(e),
+                })
             return True
 
         if checks_left <= 0:
             for payment in self:
                 payment.write({
                     "amacheck_state": "failed",
+                    "amacheck_inactive": False,
                     "amacheck_error": (
                         "You are out of eChecks. "
                         "Please go to Settings / AMACheck to purchase more."
@@ -302,11 +316,13 @@ class AccountPayment(models.Model):
                     "amacheck_check_number": check_number or False,
                     "amacheck_sent_at": fields.Datetime.now(),
                     "amacheck_error": False,
+                    "amacheck_inactive": False,
                 })
 
             except Exception as e:
                 payment.write({
                     "amacheck_state": "failed",
+                    "amacheck_inactive": False,
                     "amacheck_error": str(e),
                 })
 

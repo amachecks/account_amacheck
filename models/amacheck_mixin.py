@@ -6,6 +6,10 @@ _LICENSE_API_URL = "https://www.wattcollc.com/amachecksapi/api_validate_license.
 _LICENSE_API_KEY = "8f3c91d7a4b2e6c9f8a1d3b7c5e2f4a9d6c3b1e7f9a2c4d6b8e1f3a5c7d9b2"
 
 
+class AMACheckLicenseInactiveError(Exception):
+    pass
+
+
 def amacheck_get_credentials(license_code):
     """Call the AMAChecks license API and return (api_code, checks_left).
     Raises Exception with a user-friendly message on any failure.
@@ -49,10 +53,7 @@ def amacheck_get_credentials(license_code):
 def _license_error_message(error):
     error_lower = (error or "").lower()
     if "inactive" in error_lower:
-        return (
-            "Your AMAChecks license is inactive. "
-            "Please contact support at amachecks.com."
-        )
+        raise AMACheckLicenseInactiveError()
     if "invalid" in error_lower:
         return (
             "Invalid AMAChecks license code. "
