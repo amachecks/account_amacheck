@@ -3,6 +3,7 @@ import urllib.request
 import urllib.error
 
 _LICENSE_API_URL = "https://www.wattcollc.com/amachecksapi/api_validate_license.php"
+_RECORD_CHECK_URL = "https://www.wattcollc.com/amachecksapi/api_record_check.php"
 _LICENSE_API_KEY = "8f3c91d7a4b2e6c9f8a1d3b7c5e2f4a9d6c3b1e7f9a2c4d6b8e1f3a5c7d9b2"
 
 
@@ -60,6 +61,29 @@ def _license_error_message(error):
             "Please check the License Code in Settings > AMACheck."
         )
     return "AMAChecks license validation failed: %s" % error
+
+
+def amacheck_record_check(license_code):
+    """Decrement ChecksLeft on the license server after a successful check send.
+    Returns the updated ChecksLeft value, or None if the call fails.
+    Failures are intentionally swallowed — the check was already sent.
+    """
+    payload = json.dumps({"LicenseCode": license_code}).encode("utf-8")
+    req = urllib.request.Request(
+        _RECORD_CHECK_URL,
+        data=payload,
+        headers={
+            "X-API-KEY": _LICENSE_API_KEY,
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as response:
+            result = json.loads(response.read().decode("utf-8"))
+            return result.get("ChecksLeft")
+    except Exception:
+        return None
 
 
 def amacheck_request_json(url, api_code, payload=None, method="POST"):

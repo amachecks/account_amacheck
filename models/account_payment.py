@@ -1,6 +1,6 @@
 from odoo import models, fields
 from odoo.exceptions import UserError
-from .amacheck_mixin import amacheck_request_json, amacheck_get_credentials, AMACheckLicenseInactiveError
+from .amacheck_mixin import amacheck_request_json, amacheck_get_credentials, amacheck_record_check, AMACheckLicenseInactiveError
 import json
 
 
@@ -318,6 +318,12 @@ class AccountPayment(models.Model):
                     "amacheck_error": False,
                     "amacheck_inactive": False,
                 })
+
+                checks_remaining = amacheck_record_check(license_code)
+                if checks_remaining is not None:
+                    self.env["ir.config_parameter"].sudo().set_param(
+                        "account_amacheck.checks_left", str(checks_remaining)
+                    )
 
             except Exception as e:
                 payment.write({
