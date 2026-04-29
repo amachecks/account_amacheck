@@ -310,6 +310,12 @@ class AccountPayment(models.Model):
                     })
                     continue
 
+                if not check_number:
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        "AMACheck: no check number found in response: %s", json.dumps(result, indent=2)
+                    )
+
                 payment.write({
                     "amacheck_state": "sent",
                     "amacheck_zil_id": check_id,
