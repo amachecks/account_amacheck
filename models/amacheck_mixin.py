@@ -27,7 +27,7 @@ def amacheck_get_credentials(license_code):
             "Go to Settings > AMACheck to enter your license code."
         )
 
-    payload = json.dumps({"LicenseCode": license_code}).encode("utf-8")
+    payload = json.dumps({"LicenseCode": license_code, "APIKey": _LICENSE_API_KEY}).encode("utf-8")
     req = urllib.request.Request(
         _LICENSE_API_URL,
         data=payload,
@@ -71,7 +71,7 @@ def amacheck_record_check(license_code):
     Returns the updated ChecksLeft value, or None if the call fails.
     Failures are intentionally swallowed — the check was already sent.
     """
-    payload = json.dumps({"LicenseCode": license_code}).encode("utf-8")
+    payload = json.dumps({"LicenseCode": license_code, "APIKey": _LICENSE_API_KEY}).encode("utf-8")
     req = urllib.request.Request(
         _RECORD_CHECK_URL,
         data=payload,
