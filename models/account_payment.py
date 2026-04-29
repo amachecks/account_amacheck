@@ -1,4 +1,4 @@
-from odoo import models, fields, api
+from odoo import models, fields
 from odoo.exceptions import UserError
 from .amacheck_mixin import amacheck_request_json
 import json
@@ -17,18 +17,6 @@ class AccountPayment(models.Model):
     amacheck_check_number = fields.Char(string="Check Number", copy=False)
     amacheck_sent_at = fields.Datetime(string="Sent On")
     amacheck_error = fields.Text(string="Errors")
-
-    amacheck_journal_id = fields.Many2one(
-        "account.journal",
-        string="AMACheck Account",
-        domain="[('type', '=', 'bank')]",
-        copy=False,
-    )
-
-    @api.onchange("journal_id")
-    def _onchange_amacheck_journal_id(self):
-        if self.journal_id and self.journal_id.type == "bank":
-            self.amacheck_journal_id = self.journal_id
 
     def _amacheck_validate_partner(self, partner):
         missing = []
@@ -155,24 +143,13 @@ class AccountPayment(models.Model):
     def _amacheck_get_bank_journal(self):
         self.ensure_one()
 
-        if self.amacheck_journal_id and self.amacheck_journal_id.type == "bank":
-            return self.amacheck_journal_id
-
         if self.journal_id and self.journal_id.type == "bank":
             return self.journal_id
 
-        default_journal = self.env["account.journal"].search([
-            ("type", "=", "bank"),
-            ("amacheck_is_default", "=", True),
-            ("company_id", "=", self.company_id.id),
-        ], limit=1)
-
-        if default_journal:
-            return default_journal
-
         raise UserError(
-            "No AMACheck bank account is available. "
-            "Select a bank journal or mark one bank journal as the default AMACheck account."
+            "Payment '%s' must use a Bank journal to send via AMACheck. "
+            "Change the journal on this payment to a bank account journal."
+            % (self.name or self.id)
         )
 
     def _amacheck_get_or_create_bank_account_id(self, journal, api_key, base_url):
@@ -363,7 +340,6 @@ class AccountPayment(models.Model):
                     "amacheck_check_number": check_number or False,
                     "amacheck_sent_at": fields.Datetime.now(),
                     "amacheck_error": False,
-                    "amacheck_journal_id": bank_journal.id,
                 })
 
             except Exception as e:

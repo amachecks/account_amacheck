@@ -1,4 +1,4 @@
-from odoo import models, fields, api
+from odoo import models, fields
 from odoo.exceptions import ValidationError, UserError
 from .amacheck_mixin import amacheck_request_json
 import json
@@ -8,7 +8,6 @@ class AccountJournal(models.Model):
     _inherit = "account.journal"
 
     amacheck_bank_account_id = fields.Char(string="AMACheck Bank Account ID", copy=False)
-    amacheck_is_default = fields.Boolean(string="Default AMACheck Account", copy=False)
 
     amacheck_sync_state = fields.Selection([
         ("not_synced", "Not Synced"),
@@ -17,24 +16,6 @@ class AccountJournal(models.Model):
     ], string="AMACheck Sync Status", default="not_synced", copy=False)
 
     amacheck_sync_error = fields.Text(string="AMACheck Sync Error", copy=False)
-
-    @api.constrains("amacheck_is_default", "type", "company_id")
-    def _check_default_amacheck_account(self):
-        for journal in self:
-            if not journal.amacheck_is_default:
-                continue
-
-            if journal.type != "bank":
-                raise ValidationError("Only bank journals can be set as the default AMACheck account.")
-
-            existing = self.search([
-                ("id", "!=", journal.id),
-                ("amacheck_is_default", "=", True),
-                ("company_id", "=", journal.company_id.id),
-            ], limit=1)
-
-            if existing:
-                raise ValidationError("Only one default AMACheck account is allowed per company.")
 
     def _amacheck_validate_bank_journal(self):
         self.ensure_one()

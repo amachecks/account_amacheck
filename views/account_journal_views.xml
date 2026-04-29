@@ -9,7 +9,6 @@
                 <group string="AMACheck Settings" invisible="type != 'bank'">
                     <group>
                         <field name="amacheck_bank_account_id" readonly="1"/>
-                        <field name="amacheck_is_default" widget="boolean_toggle"/>
                     </group>
 
                     <group>
