@@ -7,15 +7,15 @@ import json
 class AccountJournal(models.Model):
     _inherit = "account.journal"
 
-    amacheck_bank_account_id = fields.Char(string="AMACheck Bank Account ID", copy=False)
+    amacheck_bank_account_id = fields.Char(string="Bank Account ID", copy=False)
 
     amacheck_sync_state = fields.Selection([
         ("not_synced", "Not Synced"),
         ("synced", "Synced"),
         ("failed", "Failed"),
-    ], string="AMACheck Sync Status", default="not_synced", copy=False)
+    ], string="Sync Status", default="not_synced", copy=False)
 
-    amacheck_sync_error = fields.Text(string="AMACheck Sync Error", copy=False)
+    amacheck_sync_error = fields.Text(string="Sync Error", copy=False)
 
     def _amacheck_validate_bank_journal(self):
         self.ensure_one()

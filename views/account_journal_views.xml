@@ -13,7 +13,7 @@
 
                     <group>
                         <field name="amacheck_sync_state" readonly="1"/>
-                        <field name="amacheck_sync_error" readonly="1"/>
+                        <field name="amacheck_sync_error" readonly="1" style="color: red;"/>
                     </group>
 
                     <group>
