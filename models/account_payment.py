@@ -77,7 +77,7 @@ class AccountPayment(models.Model):
 
         raise UserError(
             "Unable to create or locate AMACheck bank account: %s"
-            % (journal.amacheck_sync_error or "Unknown error")
+            % (journal.amacheck_sync_message or "Unknown error")
         )
 
     def action_send_amacheck(self):

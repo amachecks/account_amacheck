@@ -10,22 +10,21 @@
                     <group>
                         <field name="amacheck_bank_account_id" readonly="1"/>
                     </group>
-
-                    <group>
-                        <field name="amacheck_sync_state" readonly="1"/>
-                        <field name="amacheck_sync_error" readonly="1" style="color: red;"/>
-                    </group>
-
                     <group>
                         <button name="action_amacheck_test_connection"
-                                string="Test AMACheck Connection"
+                                string="Test Connection"
                                 type="object"
                                 class="btn-secondary"/>
-
                         <button name="action_amacheck_sync_bank_account"
-                                string="Sync AMACheck Bank Account"
+                                string="Sync Bank Account"
                                 type="object"
-                                class="btn-primary"/>
+                                class="btn-secondary"/>
+                    </group>
+                    <group colspan="2">
+                        <field name="amacheck_sync_message"
+                               readonly="1"
+                               nolabel="1"
+                               style="color: black;"/>
                     </group>
                 </group>
 

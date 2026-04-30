@@ -7,14 +7,12 @@ class AccountJournal(models.Model):
     _inherit = "account.journal"
 
     amacheck_bank_account_id = fields.Char(string="Bank Account ID", copy=False)
-
-    amacheck_sync_state = fields.Selection([
+    amacheck_sync_state      = fields.Selection([
         ("not_synced", "Not Synced"),
         ("synced",     "Synced"),
         ("failed",     "Failed"),
     ], string="Sync Status", default="not_synced", copy=False)
-
-    amacheck_sync_error = fields.Text(string="Sync Error", copy=False)
+    amacheck_sync_message    = fields.Text(string="Status", copy=False)
 
     def _amacheck_validate_bank_journal(self):
         self.ensure_one()
@@ -125,12 +123,12 @@ class AccountJournal(models.Model):
                 journal.write({
                     "amacheck_bank_account_id": bank_account_id,
                     "amacheck_sync_state":      "synced",
-                    "amacheck_sync_error":      False,
+                    "amacheck_sync_message":    "Bank account synced successfully. ID: %s" % bank_account_id,
                 })
             except Exception as e:
                 journal.write({
-                    "amacheck_sync_state": "failed",
-                    "amacheck_sync_error": str(e),
+                    "amacheck_sync_state":   "failed",
+                    "amacheck_sync_message": "Sync failed: %s" % str(e),
                 })
 
         return True
@@ -143,12 +141,11 @@ class AccountJournal(models.Model):
             try:
                 _, checks_left = amacheck_get_credentials(license_code)
                 journal.write({
-                    "amacheck_sync_error": "AMAChecks license is valid. eChecks available: %d" % checks_left,
+                    "amacheck_sync_message": "Connection successful. eChecks available: %d" % checks_left,
                 })
             except Exception as e:
                 journal.write({
-                    "amacheck_sync_state": "failed",
-                    "amacheck_sync_error": str(e),
+                    "amacheck_sync_message": "Connection failed: %s" % str(e),
                 })
 
         return True
