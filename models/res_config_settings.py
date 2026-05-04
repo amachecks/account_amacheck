@@ -86,8 +86,11 @@ class ResConfigSettings(models.TransientModel):
             params.set_param("account_amacheck.checkeeper_api_key", result["ProviderAPIKey"])
 
         allow_sandbox = result.get("AllowSandbox", True)
-        params.set_param("account_amacheck.allow_sandbox", "1" if allow_sandbox else "0")
+        params.set_param("account_amacheck.allow_sandbox", "1" if allow_sandbox else "")
         if not allow_sandbox:
             params.set_param("account_amacheck.environment", "production")
+
+        assign_check_no = result.get("AssignCheckNo", False)
+        params.set_param("account_amacheck.assign_check_no", "1" if assign_check_no else "")
 
         return {"type": "ir.actions.client", "tag": "reload"}

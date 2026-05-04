@@ -9,8 +9,17 @@ class AccountJournal(models.Model):
 
     amacheck_bank_account_id = fields.Char(string="Bank Account ID", copy=False)
 
-    amacheck_assign_check_no = fields.Boolean(string="Assign Check Numbers", default=False)
+    amacheck_assign_check_no = fields.Boolean(
+        string="Assign Check Numbers",
+        compute="_compute_amacheck_assign_check_no",
+    )
     amacheck_next_check_no = fields.Integer(string="Next Check Number", default=0, copy=False)
+
+    def _compute_amacheck_assign_check_no(self):
+        assign = self.env["ir.config_parameter"].sudo().get_param("account_amacheck.assign_check_no")
+        val = bool(assign)
+        for journal in self:
+            journal.amacheck_assign_check_no = val
 
     amacheck_sync_state = fields.Selection([
         ("not_synced", "Not Synced"),
