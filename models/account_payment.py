@@ -260,11 +260,7 @@ class AccountPayment(models.Model):
 
     def _action_send_via_checkeeper(self, payment, journal, checkeeper_api_key):
         if not journal.amacheck_next_check_no:
-            payment.write({
-                "amacheck_state": "failed",
-                "amacheck_error": "Next Check Number is not set on this journal. Set it in the AMACheck Settings tab.",
-            })
-            return False
+            journal.amacheck_next_check_no = 10000
 
         payload = payment._amacheck_checkeeper_payload(journal)
 
