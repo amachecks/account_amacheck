@@ -11,8 +11,11 @@
                             <field name="account_amacheck_api_key" password="True"/>
                         </setting>
 
-                        <setting string="Environment" help="Use Sandbox for testing or Production for live transactions.">
+                        <setting string="Environment"
+                                 help="Use Sandbox for testing or Production for live transactions."
+                                 invisible="not account_amacheck_allow_sandbox">
                             <field name="account_amacheck_environment" widget="radio"/>
+                            <field name="account_amacheck_allow_sandbox" invisible="1"/>
                         </setting>
                     </block>
 

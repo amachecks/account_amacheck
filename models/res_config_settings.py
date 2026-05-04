@@ -39,6 +39,12 @@ class ResConfigSettings(models.TransientModel):
         readonly=True,
     )
 
+    account_amacheck_allow_sandbox = fields.Boolean(
+        string="Allow Sandbox Mode",
+        config_parameter="account_amacheck.allow_sandbox",
+        readonly=True,
+    )
+
     def action_amacheck_refresh_status(self):
         license_code = self.account_amacheck_license_code
         if not license_code:
@@ -78,5 +84,10 @@ class ResConfigSettings(models.TransientModel):
 
         if "ProviderAPIKey" in result:
             params.set_param("account_amacheck.checkeeper_api_key", result["ProviderAPIKey"])
+
+        allow_sandbox = result.get("AllowSandbox", True)
+        params.set_param("account_amacheck.allow_sandbox", "1" if allow_sandbox else "0")
+        if not allow_sandbox:
+            params.set_param("account_amacheck.environment", "production")
 
         return {"type": "ir.actions.client", "tag": "reload"}
