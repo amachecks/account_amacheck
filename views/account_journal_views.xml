@@ -7,20 +7,25 @@
             <xpath expr="//sheet" position="inside">
 
                 <group string="AMACheck Settings" invisible="type != 'bank'">
-                    <group>
+                    <field name="amacheck_is_ocw" invisible="1"/>
+                    <field name="amacheck_assign_check_no" invisible="1"/>
+
+                    <group invisible="not amacheck_is_ocw">
                         <field name="amacheck_bank_account_id" readonly="1"/>
-                        <field name="amacheck_assign_check_no" invisible="1"/>
+                    </group>
+
+                    <group>
                         <field name="amacheck_next_check_no"
                                string="Next Check Number"
                                invisible="not amacheck_assign_check_no"/>
                     </group>
 
-                    <group>
+                    <group invisible="not amacheck_is_ocw">
                         <field name="amacheck_sync_state" readonly="1"/>
                         <field name="amacheck_sync_error" readonly="1" style="color: red;"/>
                     </group>
 
-                    <group>
+                    <group invisible="not amacheck_is_ocw">
                         <button name="action_amacheck_test_connection"
                                 string="Test AMACheck Connection"
                                 type="object"

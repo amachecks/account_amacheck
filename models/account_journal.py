@@ -15,11 +15,21 @@ class AccountJournal(models.Model):
     )
     amacheck_next_check_no = fields.Integer(string="Next Check Number", default=10000, copy=False)
 
+    amacheck_is_ocw = fields.Boolean(
+        string="Is Online Check Writer",
+        compute="_compute_amacheck_is_ocw",
+    )
+
     def _compute_amacheck_assign_check_no(self):
         assign = self.env["ir.config_parameter"].sudo().get_param("account_amacheck.assign_check_no")
         val = bool(assign)
         for journal in self:
             journal.amacheck_assign_check_no = val
+
+    def _compute_amacheck_is_ocw(self):
+        is_ocw = bool(self.env["ir.config_parameter"].sudo().get_param("account_amacheck.is_ocw"))
+        for journal in self:
+            journal.amacheck_is_ocw = is_ocw
 
     amacheck_sync_state = fields.Selection([
         ("not_synced", "Not Synced"),

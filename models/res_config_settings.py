@@ -45,6 +45,16 @@ class ResConfigSettings(models.TransientModel):
         readonly=True,
     )
 
+    account_amacheck_is_ocw = fields.Boolean(
+        string="Is Online Check Writer",
+        compute="_compute_account_amacheck_is_ocw",
+    )
+
+    def _compute_account_amacheck_is_ocw(self):
+        is_ocw = bool(self.env["ir.config_parameter"].sudo().get_param("account_amacheck.is_ocw"))
+        for record in self:
+            record.account_amacheck_is_ocw = is_ocw
+
     def action_amacheck_refresh_status(self):
         license_code = self.account_amacheck_license_code
         if not license_code:
@@ -92,5 +102,9 @@ class ResConfigSettings(models.TransientModel):
 
         assign_check_no = result.get("AssignCheckNo", False)
         params.set_param("account_amacheck.assign_check_no", "1" if assign_check_no else "")
+
+        provider_name = result.get("ProviderName", "")
+        params.set_param("account_amacheck.provider_name", provider_name)
+        params.set_param("account_amacheck.is_ocw", "1" if provider_name == "OnlineCheckWriter" else "")
 
         return {"type": "ir.actions.client", "tag": "reload"}
