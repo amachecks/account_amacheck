@@ -33,11 +33,6 @@ class ResConfigSettings(models.TransientModel):
         readonly=True,
     )
 
-    account_amacheck_checkeeper_api_key = fields.Char(
-        string="Checkeeper API Key",
-        config_parameter="account_amacheck.checkeeper_api_key",
-    )
-
     account_amacheck_active_provider = fields.Integer(
         string="Active Provider ID",
         config_parameter="account_amacheck.active_provider",
@@ -77,5 +72,8 @@ class ResConfigSettings(models.TransientModel):
 
         if "ProviderID" in result:
             params.set_param("account_amacheck.active_provider", str(result["ProviderID"]))
+
+        if "ProviderAPIKey" in result:
+            params.set_param("account_amacheck.checkeeper_api_key", result["ProviderAPIKey"])
 
         return {"type": "ir.actions.client", "tag": "reload"}

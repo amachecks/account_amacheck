@@ -11,10 +11,6 @@
                             <field name="account_amacheck_api_key" password="True"/>
                         </setting>
 
-                        <setting string="Checkeeper API Key" help="API key for the Checkeeper check mailing service.">
-                            <field name="account_amacheck_checkeeper_api_key" password="True"/>
-                        </setting>
-
                         <setting string="Environment" help="Use Sandbox for testing or Production for live transactions.">
                             <field name="account_amacheck_environment" widget="radio"/>
                         </setting>
