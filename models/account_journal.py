@@ -13,7 +13,7 @@ class AccountJournal(models.Model):
         string="Assign Check Numbers",
         compute="_compute_amacheck_assign_check_no",
     )
-    amacheck_next_check_no = fields.Integer(string="Next Check Number", default=0, copy=False)
+    amacheck_next_check_no = fields.Integer(string="Next Check Number", default=10000, copy=False)
 
     def _compute_amacheck_assign_check_no(self):
         assign = self.env["ir.config_parameter"].sudo().get_param("account_amacheck.assign_check_no")
