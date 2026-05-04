@@ -33,6 +33,17 @@ class ResConfigSettings(models.TransientModel):
         readonly=True,
     )
 
+    account_amacheck_checkeeper_api_key = fields.Char(
+        string="Checkeeper API Key",
+        config_parameter="account_amacheck.checkeeper_api_key",
+    )
+
+    account_amacheck_active_provider = fields.Integer(
+        string="Active Provider ID",
+        config_parameter="account_amacheck.active_provider",
+        readonly=True,
+    )
+
     def action_amacheck_refresh_status(self):
         license_code = self.account_amacheck_license_code
         if not license_code:
@@ -61,9 +72,10 @@ class ResConfigSettings(models.TransientModel):
                 % result.get("error", "Unknown error")
             )
 
-        checks_left = result.get("ChecksLeft", 0)
-        self.env["ir.config_parameter"].sudo().set_param(
-            "account_amacheck.checks_left", str(checks_left)
-        )
+        params = self.env["ir.config_parameter"].sudo()
+        params.set_param("account_amacheck.checks_left", str(result.get("ChecksLeft", 0)))
+
+        if "ProviderID" in result:
+            params.set_param("account_amacheck.active_provider", str(result["ProviderID"]))
 
         return {"type": "ir.actions.client", "tag": "reload"}

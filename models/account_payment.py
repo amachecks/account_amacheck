@@ -3,6 +3,9 @@ from odoo.exceptions import UserError
 from .amacheck_mixin import amacheck_request_json
 import json
 
+_CHECKEEPER_URL = "https://api.checkeeper.com/v3/check"
+_PROVIDER_CHECKEEPER = 3
+
 
 class AccountPayment(models.Model):
     _inherit = "account.payment"
@@ -194,10 +197,129 @@ class AccountPayment(models.Model):
             },
         }
 
+    def _amacheck_checkeeper_payload(self, journal):
+        partner = self.partner_id
+        company_partner = self.company_id.partner_id
+        bank_account = journal.bank_account_id
+        bank = bank_account.bank_id
+
+        return {
+            "delivery": {
+                "method": "usps.first_class",
+                "bundle_address": {
+                    "name": partner.name,
+                    "company": partner.commercial_company_name or partner.parent_id.name or partner.name,
+                    "line1": partner.street or "",
+                    "line2": partner.street2 or "",
+                    "city": partner.city or "",
+                    "state": partner.state_id.code or partner.state_id.name or "",
+                    "zip": partner.zip or "",
+                    "country": partner.country_id.code or "US",
+                },
+                "bundle_return": {
+                    "name": company_partner.name,
+                    "line1": company_partner.street or "",
+                    "line2": company_partner.street2 or "",
+                    "city": company_partner.city or "",
+                    "state": company_partner.state_id.code or company_partner.state_id.name or "",
+                    "zip": company_partner.zip or "",
+                    "country": "US",
+                },
+            },
+            "checks": [
+                {
+                    "bank": {
+                        "routing": bank.bic or "",
+                        "account": bank_account.acc_number or "",
+                    },
+                    "payer": {"line1": company_partner.name},
+                    "payee": {"line1": partner.name},
+                    "amount": int(round(self.amount * 100)),
+                    "number": journal.amacheck_next_check_no,
+                    "date": fields.Date.today().strftime("%Y-%m-%d"),
+                    "memo": self.name or "Odoo Payment",
+                    "from_address": {
+                        "line1": company_partner.street or "",
+                        "line2": company_partner.street2 or "",
+                        "city": company_partner.city or "",
+                        "state": company_partner.state_id.code or company_partner.state_id.name or "",
+                        "zip": company_partner.zip or "",
+                        "country": "US",
+                    },
+                    "to_address": {
+                        "line1": partner.street or "",
+                        "line2": partner.street2 or "",
+                        "city": partner.city or "",
+                        "state": partner.state_id.code or partner.state_id.name or "",
+                        "zip": partner.zip or "",
+                        "country": partner.country_id.code or "US",
+                    },
+                }
+            ],
+        }
+
+    def _action_send_via_checkeeper(self, payment, journal, checkeeper_api_key):
+        if not journal.amacheck_next_check_no:
+            payment.write({
+                "amacheck_state": "failed",
+                "amacheck_error": "Next Check Number is not set on this journal. Set it in the AMACheck Settings tab.",
+            })
+            return False
+
+        payload = payment._amacheck_checkeeper_payload(journal)
+
+        result = amacheck_request_json(
+            _CHECKEEPER_URL,
+            checkeeper_api_key,
+            payload,
+            method="POST",
+        )
+
+        if result.get("success") is False or result.get("error"):
+            payment.write({
+                "amacheck_state": "failed",
+                "amacheck_error": (
+                    "Checkeeper check send failed.\n\nPayload:\n%s\n\nResponse:\n%s"
+                    % (json.dumps(payload, indent=2), json.dumps(result, indent=2))
+                ),
+            })
+            return False
+
+        checks = result.get("checks") or []
+        check_id = (
+            checks[0].get("id") or checks[0].get("checkId")
+            if checks else None
+        ) or result.get("id") or result.get("checkId")
+
+        check_number = str(journal.amacheck_next_check_no)
+
+        if not check_id:
+            payment.write({
+                "amacheck_state": "failed",
+                "amacheck_error": (
+                    "Checkeeper accepted the check but returned no ID.\n\nPayload:\n%s\n\nResponse:\n%s"
+                    % (json.dumps(payload, indent=2), json.dumps(result, indent=2))
+                ),
+            })
+            return False
+
+        payment.write({
+            "amacheck_state": "sent",
+            "amacheck_zil_id": check_id,
+            "amacheck_check_number": check_number,
+            "amacheck_sent_at": fields.Datetime.now(),
+            "amacheck_error": False,
+        })
+
+        journal.amacheck_next_check_no += 1
+        return True
+
     def action_send_amacheck(self):
         params = self.env["ir.config_parameter"].sudo()
 
+        active_provider = int(params.get_param("account_amacheck.active_provider", 1) or 1)
         api_key = params.get_param("account_amacheck.api_key")
+        checkeeper_api_key = params.get_param("account_amacheck.checkeeper_api_key")
         env = params.get_param("account_amacheck.environment", "production")
         base_url = "https://app.onlinecheckwriter.com/api/v3" if env == "production" else "https://test.onlinecheckwriter.com/api/v3"
         quickpay_url = base_url.rstrip("/") + "/quickpay/mailcheck"
@@ -209,7 +331,14 @@ class AccountPayment(models.Model):
                 })
                 continue
 
-            if not api_key:
+            if active_provider == _PROVIDER_CHECKEEPER and not checkeeper_api_key:
+                payment.write({
+                    "amacheck_state": "failed",
+                    "amacheck_error": "Checkeeper API key is not configured.",
+                })
+                continue
+
+            if active_provider != _PROVIDER_CHECKEEPER and not api_key:
                 payment.write({
                     "amacheck_state": "failed",
                     "amacheck_error": "AMACheck API key is not configured.",
@@ -248,6 +377,10 @@ class AccountPayment(models.Model):
                 payment._amacheck_validate_partner(payment.partner_id)
 
                 bank_journal = payment._amacheck_get_bank_journal()
+
+                if active_provider == _PROVIDER_CHECKEEPER:
+                    payment._action_send_via_checkeeper(payment, bank_journal, checkeeper_api_key)
+                    continue
 
                 bank_account_id = payment._amacheck_get_or_create_bank_account_id(
                     bank_journal,

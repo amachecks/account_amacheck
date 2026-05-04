@@ -7,8 +7,12 @@
             <xpath expr="//form" position="inside">
                 <app data-string="AMACheck" string="AMACheck" name="account_amacheck">
                     <block title="AMACheck API Settings">
-                        <setting string="API Key" help="AMACheck API key used to connect to the check service.">
+                        <setting string="Online Check Writer API Key" help="API key for the Online Check Writer (Zil) service.">
                             <field name="account_amacheck_api_key" password="True"/>
+                        </setting>
+
+                        <setting string="Checkeeper API Key" help="API key for the Checkeeper check mailing service.">
+                            <field name="account_amacheck_checkeeper_api_key" password="True"/>
                         </setting>
 
                         <setting string="Environment" help="Use Sandbox for testing or Production for live transactions.">
