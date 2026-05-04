@@ -44,7 +44,10 @@ class ResConfigSettings(models.TransientModel):
         if not license_code:
             raise UserError("Please enter your AMACheck License Code before refreshing.")
 
-        payload = json.dumps({"LicenseCode": license_code}).encode("utf-8")
+        environment = self.env["ir.config_parameter"].sudo().get_param(
+            "account_amacheck.environment", "production"
+        )
+        payload = json.dumps({"LicenseCode": license_code, "Environment": environment}).encode("utf-8")
         req = urllib.request.Request(
             _LICENSE_API_URL,
             data=payload,
