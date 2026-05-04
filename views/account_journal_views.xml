@@ -9,6 +9,10 @@
                 <group string="AMACheck Settings" invisible="type != 'bank'">
                     <group>
                         <field name="amacheck_bank_account_id" readonly="1"/>
+                        <field name="amacheck_assign_check_no"/>
+                        <field name="amacheck_next_check_no"
+                               string="Next Check Number"
+                               invisible="not amacheck_assign_check_no"/>
                     </group>
 
                     <group>

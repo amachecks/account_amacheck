@@ -9,6 +9,9 @@ class AccountJournal(models.Model):
 
     amacheck_bank_account_id = fields.Char(string="Bank Account ID", copy=False)
 
+    amacheck_assign_check_no = fields.Boolean(string="Assign Check Numbers", default=False)
+    amacheck_next_check_no = fields.Integer(string="Next Check Number", default=0, copy=False)
+
     amacheck_sync_state = fields.Selection([
         ("not_synced", "Not Synced"),
         ("synced", "Synced"),

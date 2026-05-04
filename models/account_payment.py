@@ -342,6 +342,9 @@ class AccountPayment(models.Model):
                     "amacheck_error": False,
                 })
 
+                if bank_journal.amacheck_assign_check_no:
+                    bank_journal.amacheck_next_check_no += 1
+
             except Exception as e:
                 payment.write({
                     "amacheck_state": "failed",
