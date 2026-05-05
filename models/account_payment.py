@@ -121,11 +121,13 @@ class AccountPayment(models.Model):
                     },
                     "payer":  {"line1": company_partner.name},
                     "payee":  {"line1": partner.name},
+                    "signer": {"line1": company_partner.name},
                     "amount": int(round(self.amount * 100)),
                     "number": journal.amacheck_next_check_no,
                     "date":   fields.Date.today().strftime("%Y-%m-%d"),
                     "memo":   self.name or "Odoo Payment",
                     "from_address": {
+                        "name":  company_partner.name,
                         "line1": company_partner.street or "",
                         "line2": company_partner.street2 or "",
                         "city":  company_partner.city or "",
@@ -134,6 +136,7 @@ class AccountPayment(models.Model):
                         "country": "US",
                     },
                     "to_address": {
+                        "name":  partner.name,
                         "line1": partner.street or "",
                         "line2": partner.street2 or "",
                         "city":  partner.city or "",
