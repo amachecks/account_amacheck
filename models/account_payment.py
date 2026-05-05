@@ -161,7 +161,7 @@ class AccountPayment(models.Model):
         payload          = self._amacheck_checkeeper_payload(journal, signer)
         status_code, result = checkeeper_post(_CHECKEEPER_URL, checkeeper_api_key, payload)
 
-        if status_code == 201:
+        if status_code in (200, 201):
             payment_id   = result.get("id") or ""
             checks       = result.get("checks") or []
             check_number = str(checks[0].get("number", "")) if checks else check_no
