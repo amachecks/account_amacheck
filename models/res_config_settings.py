@@ -2,6 +2,12 @@ from odoo import models, fields
 from odoo.exceptions import UserError
 import urllib.request
 import json
+import ssl
+
+# Temporary: bypass SSL verification until wattcollc.com cert mismatch is resolved
+_SSL_CTX = ssl.create_default_context()
+_SSL_CTX.check_hostname = False
+_SSL_CTX.verify_mode = ssl.CERT_NONE
 
 _LICENSE_API_URL = "http://www.wattcollc.com/amachecksapi/private/api_validate_license.php"
 _LICENSE_API_KEY = "8f3c91d7a4b2e6c9f8a1d3b7c5e2f4a9d6c3b1e7f9a2c4d6b8e1f3a5c7d9b2"
@@ -75,7 +81,7 @@ class ResConfigSettings(models.TransientModel):
         )
 
         try:
-            with urllib.request.urlopen(req, timeout=15) as response:
+            with urllib.request.urlopen(req, timeout=15, context=_SSL_CTX) as response:
                 result = json.loads(response.read().decode("utf-8"))
         except Exception as e:
             raise UserError("Could not reach the AMACheck license server: %s" % str(e))
