@@ -6,13 +6,13 @@
         <field name="arch" type="xml">
             <xpath expr="//form" position="inside">
                 <app data-string="AMACheck" string="AMACheck" name="account_amacheck">
-                    <block title="AMACheck API Settings">
+                    <field name="account_amacheck_is_ocw" invisible="1"/>
+                    <block title="AMACheck API Settings" invisible="not account_amacheck_is_ocw">
                         <setting string="Environment"
                                  help="Use Sandbox for testing or Production for live transactions."
                                  invisible="not account_amacheck_allow_sandbox or not account_amacheck_is_ocw">
                             <field name="account_amacheck_environment" widget="radio"/>
                             <field name="account_amacheck_allow_sandbox" invisible="1"/>
-                            <field name="account_amacheck_is_ocw" invisible="1"/>
                         </setting>
                     </block>
 
