@@ -118,9 +118,12 @@ def checkeeper_post(url, api_key, payload):
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         try:
-            body = json.loads(e.read().decode("utf-8"))
-            return body
+            raw = e.read().decode("utf-8")
         except Exception:
-            return {"error": str(e)}
+            raw = ""
+        try:
+            return json.loads(raw)
+        except Exception:
+            return {"error": "%s — %s" % (str(e), raw) if raw else str(e)}
     except Exception as e:
         raise Exception("Could not reach AMAChecks API: %s" % str(e))
