@@ -98,6 +98,24 @@ def amacheck_send_check(license_code, bank_account_id, payee_id, amount, memo, v
     return result
 
 
+def amacheck_log_transaction(license_code, check_no, payee, bank, bank_account, amount, result):
+    """Log a check transaction to TransactionLog via the PHP endpoint."""
+    try:
+        _post("api_log_transaction.php", {
+            "LicenseCode": license_code,
+            "checkNo":     check_no or "",
+            "payee":       payee or "",
+            "bank":        bank or "",
+            "bankAccount": bank_account or "",
+            "amount":      amount,
+            "result":      result if isinstance(result, str) else json.dumps(result),
+        })
+    except Exception as e:
+        # Never let logging failure interrupt the payment flow
+        import logging
+        logging.getLogger(__name__).warning("AMAChecks TransactionLog failed: %s", str(e))
+
+
 def checkeeper_post(url, api_key, payload):
     """POST to the Checkeeper API with Bearer auth."""
     data = json.dumps(payload).encode("utf-8")

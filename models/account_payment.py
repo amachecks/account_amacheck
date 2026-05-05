@@ -1,6 +1,6 @@
 from odoo import models, fields
 from odoo.exceptions import UserError
-from .amacheck_mixin import amacheck_get_credentials, amacheck_send_check, checkeeper_post, AMACheckLicenseInactiveError
+from .amacheck_mixin import amacheck_get_credentials, amacheck_send_check, checkeeper_post, amacheck_log_transaction, AMACheckLicenseInactiveError
 import json
 
 _CHECKEEPER_URL = "https://api.checkeeper.com/v3/check"
@@ -148,23 +148,31 @@ class AccountPayment(models.Model):
             ],
         }
 
-    def _action_send_via_checkeeper(self, journal, checkeeper_api_key, signer):
+    def _action_send_via_checkeeper(self, journal, checkeeper_api_key, signer, license_code):
         if not journal.amacheck_next_check_no:
             journal.amacheck_next_check_no = 10000
 
-        payload = self._amacheck_checkeeper_payload(journal, signer)
-        key_hint = "key:%d chars" % len(checkeeper_api_key) if checkeeper_api_key else "key:MISSING"
-        result  = checkeeper_post(_CHECKEEPER_URL, checkeeper_api_key, payload)
+        bank_account = journal.bank_account_id
+        bank         = bank_account.bank_id
+        bank_name    = bank.name or ""
+        acc_number   = bank_account.acc_number or ""
+        check_no     = str(journal.amacheck_next_check_no)
+
+        payload   = self._amacheck_checkeeper_payload(journal, signer)
+        key_hint  = "key:%d chars" % len(checkeeper_api_key) if checkeeper_api_key else "key:MISSING"
+        result    = checkeeper_post(_CHECKEEPER_URL, checkeeper_api_key, payload)
 
         error_msg = result.get("error") or result.get("message")
         if error_msg:
-            self.write({
-                "amacheck_state": "failed",
-                "amacheck_error": (
-                    "AMAChecks check send failed: %s [%s]\n\nPayload:\n%s\n\nResponse:\n%s"
-                    % (error_msg, key_hint, json.dumps(payload, indent=2), json.dumps(result, indent=2))
-                ),
-            })
+            error_text = (
+                "AMAChecks check send failed: %s [%s]\n\nPayload:\n%s\n\nResponse:\n%s"
+                % (error_msg, key_hint, json.dumps(payload, indent=2), json.dumps(result, indent=2))
+            )
+            self.write({"amacheck_state": "failed", "amacheck_error": error_text})
+            amacheck_log_transaction(
+                license_code, "", self.partner_id.name or "",
+                bank_name, acc_number, float(self.amount), error_text,
+            )
             return False
 
         checks   = result.get("checks") or []
@@ -173,23 +181,30 @@ class AccountPayment(models.Model):
         ) or result.get("id") or result.get("checkId")
 
         if not check_id:
-            self.write({
-                "amacheck_state": "failed",
-                "amacheck_error": (
-                    "AMAChecks check send failed: no check ID returned [%s].\n\nPayload:\n%s\n\nResponse:\n%s"
-                    % (key_hint, json.dumps(payload, indent=2), json.dumps(result, indent=2))
-                ),
-            })
+            error_text = (
+                "AMAChecks check send failed: no check ID returned [%s].\n\nPayload:\n%s\n\nResponse:\n%s"
+                % (key_hint, json.dumps(payload, indent=2), json.dumps(result, indent=2))
+            )
+            self.write({"amacheck_state": "failed", "amacheck_error": error_text})
+            amacheck_log_transaction(
+                license_code, "", self.partner_id.name or "",
+                bank_name, acc_number, float(self.amount), error_text,
+            )
             return False
 
         self.write({
             "amacheck_state":        "sent",
             "amacheck_zil_id":       check_id,
-            "amacheck_check_number": str(journal.amacheck_next_check_no),
+            "amacheck_check_number": check_no,
             "amacheck_sent_at":      fields.Datetime.now(),
             "amacheck_error":        False,
             "amacheck_inactive":     False,
         })
+
+        amacheck_log_transaction(
+            license_code, check_no, self.partner_id.name or "",
+            bank_name, acc_number, float(self.amount), result,
+        )
 
         journal.amacheck_next_check_no += 1
         return True
@@ -297,7 +312,7 @@ class AccountPayment(models.Model):
                             ),
                         })
                         continue
-                    payment._action_send_via_checkeeper(bank_journal, checkeeper_api_key, signer)
+                    payment._action_send_via_checkeeper(bank_journal, checkeeper_api_key, signer, license_code)
                     continue
 
                 bank_account_id = payment._amacheck_get_or_create_bank_account_id(bank_journal)
