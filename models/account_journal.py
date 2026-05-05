@@ -1,7 +1,6 @@
 from odoo import models, fields
-from odoo.exceptions import ValidationError, UserError
-from .amacheck_mixin import amacheck_request_json
-import json
+from odoo.exceptions import ValidationError
+from .amacheck_mixin import amacheck_get_credentials, amacheck_sync_bank_account, AMACheckLicenseInactiveError
 
 
 class AccountJournal(models.Model):
@@ -33,11 +32,10 @@ class AccountJournal(models.Model):
 
     amacheck_sync_state = fields.Selection([
         ("not_synced", "Not Synced"),
-        ("synced", "Synced"),
-        ("failed", "Failed"),
+        ("synced",     "Synced"),
+        ("failed",     "Failed"),
     ], string="Sync Status", default="not_synced", copy=False)
-
-    amacheck_sync_error = fields.Text(string="Sync Error", copy=False)
+    amacheck_sync_message = fields.Text(string="Status", copy=False)
 
     def _amacheck_validate_bank_journal(self):
         self.ensure_one()
@@ -114,133 +112,64 @@ class AccountJournal(models.Model):
         self.ensure_one()
 
         company_partner = self.company_id.partner_id
-        bank_account = self.bank_account_id
-        bank = bank_account.bank_id
+        bank_account    = self.bank_account_id
+        bank            = bank_account.bank_id
 
         return {
-            "bankAccounts": [
-                {
-                    "name": self.name,
-                    "nickName": self.name,
-                    "accountNumber": bank_account.acc_number,
-                    "addressLine1": company_partner.street or "",
-                    "addressLine2": company_partner.street2 or "",
-                    "phone": company_partner.phone or company_partner.mobile or "",
-                    "city": company_partner.city or "",
-                    "state": company_partner.state_id.code or company_partner.state_id.name or "",
-                    "zip": company_partner.zip or "",
-                    "bankName": bank.name,
-                    "bankRoutingNumber": bank.bic,
-                    "bankAddress1": bank.street,
-                    "bankCity": bank.city,
-                    "bankState": company_partner.state_id.code or company_partner.state_id.name or "",
-                    "bankZip": bank.zip,
-                }
-            ]
+            "name":              self.name,
+            "accountNumber":     bank_account.acc_number,
+            "addressLine1":      company_partner.street or "",
+            "addressLine2":      company_partner.street2 or "",
+            "phone":             company_partner.phone or company_partner.mobile or "",
+            "city":              company_partner.city or "",
+            "state":             company_partner.state_id.code or company_partner.state_id.name or "",
+            "zip":               company_partner.zip or "",
+            "bankName":          bank.name,
+            "bankRoutingNumber": bank.bic,
+            "bankAddress1":      bank.street,
+            "bankCity":          bank.city,
+            "bankState":         company_partner.state_id.code or company_partner.state_id.name or "",
+            "bankZip":           bank.zip,
         }
 
     def action_amacheck_sync_bank_account(self):
-        params = self.env["ir.config_parameter"].sudo()
-        api_key = params.get_param("account_amacheck.api_key")
-        env = params.get_param("account_amacheck.environment", "production")
-        base_url = "https://app.onlinecheckwriter.com/api/v3" if env == "production" else "https://test.onlinecheckwriter.com/api/v3"
+        params       = self.env["ir.config_parameter"].sudo()
+        license_code = params.get_param("account_amacheck.license_code")
+        env          = params.get_param("account_amacheck.environment", "production")
 
         for journal in self:
             try:
-                if not api_key:
-                    raise UserError("AMACheck API key is not configured.")
-
                 journal._amacheck_validate_bank_journal()
-
-                bank_url = base_url.rstrip("/") + "/bankAccounts"
-                payload = journal._amacheck_bank_account_payload()
-
-                result = amacheck_request_json(
-                    bank_url,
-                    api_key,
-                    payload,
-                    method="POST",
+                bank_account_id = amacheck_sync_bank_account(
+                    license_code, env, journal._amacheck_bank_account_payload()
                 )
-
-                # Duplicate case = success
-                if result.get("success") is False and result.get("bankAccountId"):
-                    journal.write({
-                        "amacheck_bank_account_id": result.get("bankAccountId"),
-                        "amacheck_sync_state": "synced",
-                        "amacheck_sync_error": (
-                            "Bank account already existed in AMACheck. "
-                            "Saved ID: %s" % result.get("bankAccountId")
-                        ),
-                    })
-                    continue
-
-                # Failure case with no ID
-                if result.get("success") is False:
-                    journal.write({
-                        "amacheck_sync_state": "failed",
-                        "amacheck_sync_error": (
-                            "AMACheck bank account sync failed.\n\n"
-                            "Payload:\n%s\n\nResponse:\n%s"
-                            % (
-                                json.dumps(payload, indent=2),
-                                json.dumps(result, indent=2),
-                            )
-                        ),
-                    })
-                    continue
-
-                bank_accounts = result.get("data", {}).get("bankAccounts") or result.get("bankAccounts") or []
-
-                bank_account_id = False
-
-                if bank_accounts:
-                    bank_account_id = (
-                        bank_accounts[0].get("bankAccountId")
-                        or bank_accounts[0].get("id")
-                    )
-
-                bank_account_id = (
-                    bank_account_id
-                    or result.get("data", {}).get("bankAccountId")
-                    or result.get("data", {}).get("id")
-                    or result.get("bankAccountId")
-                    or result.get("id")
-                )
-
-                if not bank_account_id:
-                    journal.write({
-                        "amacheck_sync_state": "failed",
-                        "amacheck_sync_error": json.dumps(result, indent=2),
-                    })
-                    continue
-
                 journal.write({
                     "amacheck_bank_account_id": bank_account_id,
-                    "amacheck_sync_state": "synced",
-                    "amacheck_sync_error": False,
+                    "amacheck_sync_state":      "synced",
+                    "amacheck_sync_message":    "Bank account synced successfully. ID: %s" % bank_account_id,
                 })
-
             except Exception as e:
                 journal.write({
-                    "amacheck_sync_state": "failed",
-                    "amacheck_sync_error": str(e),
+                    "amacheck_sync_state":   "failed",
+                    "amacheck_sync_message": "Sync failed: %s" % str(e),
                 })
 
         return True
 
     def action_amacheck_test_connection(self):
-        params = self.env["ir.config_parameter"].sudo()
-        api_key = params.get_param("account_amacheck.api_key")
+        params       = self.env["ir.config_parameter"].sudo()
+        license_code = params.get_param("account_amacheck.license_code")
+        env          = params.get_param("account_amacheck.environment", "production")
 
         for journal in self:
-            if api_key:
+            try:
+                result = amacheck_get_credentials(license_code, env)
                 journal.write({
-                    "amacheck_sync_error": "AMACheck API key is configured.",
+                    "amacheck_sync_message": "Connection successful. eChecks available: %d" % result.get("ChecksLeft", 0),
                 })
-            else:
+            except Exception as e:
                 journal.write({
-                    "amacheck_sync_state": "failed",
-                    "amacheck_sync_error": "AMACheck API key is not configured.",
+                    "amacheck_sync_message": "Connection failed: %s" % str(e),
                 })
 
         return True

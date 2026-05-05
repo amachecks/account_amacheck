@@ -7,10 +7,6 @@
             <xpath expr="//form" position="inside">
                 <app data-string="AMACheck" string="AMACheck" name="account_amacheck">
                     <block title="AMACheck API Settings">
-                        <setting string="Online Check Writer API Key" help="API key for the Online Check Writer (Zil) service.">
-                            <field name="account_amacheck_api_key" password="True"/>
-                        </setting>
-
                         <setting string="Environment"
                                  help="Use Sandbox for testing or Production for live transactions."
                                  invisible="not account_amacheck_allow_sandbox or not account_amacheck_is_ocw">
@@ -21,7 +17,7 @@
                     </block>
 
                     <block title="AMACheck Status">
-                        <setting string="License Code" help="Your AMACheck license code used to track eCheck balance.">
+                        <setting string="License Code" help="AMAChecks License Code">
                             <field name="account_amacheck_license_code"/>
                             <button name="action_amacheck_refresh_status"
                                     string="Refresh Balance"
@@ -34,7 +30,7 @@
                             <div class="mt8">
                                 <a href="https://amachecks.com/product/echeck-bundles/"
                                    target="_blank"
-                                   class="btn btn-link p-0">Buy More eChecks</a>
+                                   style="font-weight: bold; color: #0d6efd;">Buy More eChecks</a>
                             </div>
                         </setting>
                     </block>
