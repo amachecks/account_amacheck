@@ -162,7 +162,7 @@ class AccountPayment(models.Model):
         status_code, result = checkeeper_post(_CHECKEEPER_URL, checkeeper_api_key, payload)
 
         if status_code in (200, 201):
-            payment_id   = result.get("id") or ""
+            payment_id   = result.get("id") or ("RAW:" + json.dumps(result))
             checks       = result.get("checks") or []
             check_number = str(checks[0].get("number", "")) if checks else check_no
 
