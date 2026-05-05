@@ -121,7 +121,7 @@ class AccountPayment(models.Model):
                     },
                     "payer":  {"line1": company_partner.name},
                     "payee":  {"line1": partner.name},
-                    "signer": {"line1": signer},
+                    "signer": {"type": "text", "value": signer},
                     "amount": int(round(self.amount * 100)),
                     "number": journal.amacheck_next_check_no,
                     "date":   fields.Date.today().strftime("%Y-%m-%d"),
