@@ -162,20 +162,9 @@ class AccountPayment(models.Model):
         status_code, result = checkeeper_post(_CHECKEEPER_URL, checkeeper_api_key, payload)
 
         if status_code == 201:
-            # Try every known location Checkeeper may return the Payment ID
-            checks = result.get("checks") or []
-            payment_id = (
-                result.get("id")
-                or result.get("paymentId")
-                or result.get("payment_id")
-                or (checks[0].get("id") if checks else None)
-                or (checks[0].get("paymentId") if checks else None)
-                or (checks[0].get("payment_id") if checks else None)
-                or ("RAW:" + json.dumps(result))   # fallback so we can see what came back
-            )
-            check_number = (
-                str(checks[0].get("number", "")) if checks else check_no
-            ) or check_no
+            payment_id   = result.get("id") or ""
+            checks       = result.get("checks") or []
+            check_number = str(checks[0].get("number", "")) if checks else check_no
 
             self.write({
                 "amacheck_state":        "sent",
