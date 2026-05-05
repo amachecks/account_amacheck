@@ -117,7 +117,9 @@ def amacheck_log_transaction(license_code, check_no, payee, bank, bank_account, 
 
 
 def checkeeper_post(url, api_key, payload):
-    """POST to the Checkeeper API with Bearer auth."""
+    """POST to the Checkeeper API with Bearer auth.
+    Returns (http_status_code, result_dict).
+    """
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         url,
@@ -131,15 +133,17 @@ def checkeeper_post(url, api_key, payload):
     )
     try:
         with urllib.request.urlopen(req, timeout=15) as response:
-            return json.loads(response.read().decode("utf-8"))
+            status = response.getcode()
+            return status, json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
+        status = e.code
         try:
             raw = e.read().decode("utf-8")
         except Exception:
             raw = ""
         try:
-            return json.loads(raw)
+            return status, json.loads(raw)
         except Exception:
-            return {"error": "%s — %s" % (str(e), raw) if raw else str(e)}
+            return status, {"error": "%s — %s" % (str(e), raw) if raw else str(e)}
     except Exception as e:
         raise Exception("Could not reach AMAChecks API: %s" % str(e))

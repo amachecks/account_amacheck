@@ -158,56 +158,49 @@ class AccountPayment(models.Model):
         acc_number   = bank_account.acc_number or ""
         check_no     = str(journal.amacheck_next_check_no)
 
-        payload   = self._amacheck_checkeeper_payload(journal, signer)
-        key_hint  = "key:%d chars" % len(checkeeper_api_key) if checkeeper_api_key else "key:MISSING"
-        result    = checkeeper_post(_CHECKEEPER_URL, checkeeper_api_key, payload)
+        payload          = self._amacheck_checkeeper_payload(journal, signer)
+        status_code, result = checkeeper_post(_CHECKEEPER_URL, checkeeper_api_key, payload)
 
-        error_msg = result.get("error") or result.get("message")
-        if error_msg:
-            error_text = (
-                "AMAChecks check send failed: %s [%s]\n\nPayload:\n%s\n\nResponse:\n%s"
-                % (error_msg, key_hint, json.dumps(payload, indent=2), json.dumps(result, indent=2))
-            )
-            self.write({"amacheck_state": "failed", "amacheck_error": error_text})
+        if status_code == 201:
+            # Success — Payment ID is the top-level id; check number from checks array or what we sent
+            payment_id   = result.get("id") or result.get("paymentId") or ""
+            checks       = result.get("checks") or []
+            check_number = str(checks[0].get("number", "")) if checks else check_no
+
+            self.write({
+                "amacheck_state":        "sent",
+                "amacheck_zil_id":       payment_id,
+                "amacheck_check_number": check_number,
+                "amacheck_sent_at":      fields.Datetime.now(),
+                "amacheck_error":        False,
+                "amacheck_inactive":     False,
+            })
             amacheck_log_transaction(
-                license_code, "", self.partner_id.name or "",
-                bank_name, acc_number, float(self.amount), error_text,
+                license_code, check_number, self.partner_id.name or "",
+                bank_name, acc_number, float(self.amount), result,
             )
-            return False
+            journal.amacheck_next_check_no += 1
+            return True
 
-        checks   = result.get("checks") or []
-        check_id = (
-            checks[0].get("id") or checks[0].get("checkId") if checks else None
-        ) or result.get("id") or result.get("checkId")
-
-        if not check_id:
-            error_text = (
-                "AMAChecks check send failed: no check ID returned [%s].\n\nPayload:\n%s\n\nResponse:\n%s"
-                % (key_hint, json.dumps(payload, indent=2), json.dumps(result, indent=2))
-            )
-            self.write({"amacheck_state": "failed", "amacheck_error": error_text})
-            amacheck_log_transaction(
-                license_code, "", self.partner_id.name or "",
-                bank_name, acc_number, float(self.amount), error_text,
-            )
-            return False
-
+        # Failure — capture the best available error message
+        error_msg  = result.get("error") or result.get("message") or ("HTTP %s" % status_code)
+        error_text = (
+            "AMAChecks check send failed (HTTP %s): %s\n\nPayload:\n%s\n\nResponse:\n%s"
+            % (status_code, error_msg, json.dumps(payload, indent=2), json.dumps(result, indent=2))
+        )
         self.write({
-            "amacheck_state":        "sent",
-            "amacheck_zil_id":       check_id,
-            "amacheck_check_number": check_no,
-            "amacheck_sent_at":      fields.Datetime.now(),
-            "amacheck_error":        False,
+            "amacheck_state":        "failed",
+            "amacheck_zil_id":       False,
+            "amacheck_check_number": False,
+            "amacheck_sent_at":      False,
+            "amacheck_error":        error_text,
             "amacheck_inactive":     False,
         })
-
         amacheck_log_transaction(
-            license_code, check_no, self.partner_id.name or "",
-            bank_name, acc_number, float(self.amount), result,
+            license_code, "", self.partner_id.name or "",
+            bank_name, acc_number, float(self.amount), error_text,
         )
-
-        journal.amacheck_next_check_no += 1
-        return True
+        return False
 
     def action_send_amacheck(self):
         params       = self.env["ir.config_parameter"].sudo()
