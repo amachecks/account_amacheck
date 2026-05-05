@@ -155,12 +155,13 @@ class AccountPayment(models.Model):
         payload = self._amacheck_checkeeper_payload(journal)
         result  = checkeeper_post(_CHECKEEPER_URL, checkeeper_api_key, payload)
 
-        if result.get("error"):
+        error_msg = result.get("error") or result.get("message")
+        if error_msg:
             self.write({
                 "amacheck_state": "failed",
                 "amacheck_error": (
-                    "Checkeeper check send failed.\n\nPayload:\n%s\n\nResponse:\n%s"
-                    % (json.dumps(payload, indent=2), json.dumps(result, indent=2))
+                    "AMAChecks check send failed: %s\n\nPayload:\n%s\n\nResponse:\n%s"
+                    % (error_msg, json.dumps(payload, indent=2), json.dumps(result, indent=2))
                 ),
             })
             return False
@@ -174,7 +175,7 @@ class AccountPayment(models.Model):
             self.write({
                 "amacheck_state": "failed",
                 "amacheck_error": (
-                    "Checkeeper accepted the check but returned no ID.\n\nPayload:\n%s\n\nResponse:\n%s"
+                    "AMAChecks check send failed: no check ID returned.\n\nPayload:\n%s\n\nResponse:\n%s"
                     % (json.dumps(payload, indent=2), json.dumps(result, indent=2))
                 ),
             })

@@ -123,4 +123,4 @@ def checkeeper_post(url, api_key, payload):
         except Exception:
             return {"error": str(e)}
     except Exception as e:
-        raise Exception("Could not reach Checkeeper API: %s" % str(e))
+        raise Exception("Could not reach AMAChecks API: %s" % str(e))
