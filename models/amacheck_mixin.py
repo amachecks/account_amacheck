@@ -3,7 +3,7 @@ import urllib.request
 import urllib.error
 import ssl
 
-_BASE_URL = "https://www.wattcollc.com/amachecksapi/private"
+_BASE_URL = "https://api.amachecks.com/private"
 _LICENSE_API_KEY = "8f3c91d7a4b2e6c9f8a1d3b7c5e2f4a9d6c3b1e7f9a2c4d6b8e1f3a5c7d9b2"
 
 _HEADERS = {
