@@ -100,13 +100,14 @@ def amacheck_send_check(license_code, bank_account_id, payee_id, amount, memo, v
 
 def amacheck_log_transaction(license_code, check_no, payee, bank, bank_account, amount, result):
     """Log a check transaction to TransactionLog via the PHP endpoint."""
+    masked = ("****" + str(bank_account)[-4:]) if bank_account else ""
     try:
         _post("api_log_transaction.php", {
             "LicenseCode": license_code,
             "checkNo":     check_no or "",
             "payee":       payee or "",
             "bank":        bank or "",
-            "bankAccount": bank_account or "",
+            "bankAccount": masked,
             "amount":      amount,
             "result":      result if isinstance(result, str) else json.dumps(result),
         })
