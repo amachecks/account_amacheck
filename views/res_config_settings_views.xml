@@ -8,7 +8,7 @@
                 <app data-string="AMACheck" string="AMACheck" name="account_amacheck">
                     <field name="account_amacheck_is_ocw" invisible="1"/>
 
-                    <block title="AMACheck Status">
+                    <block title="AMACheck Information">
                         <setting string="License Code" help="AMAChecks License Code">
                             <field name="account_amacheck_license_code"/>
                             <button name="action_amacheck_refresh_status"
@@ -24,6 +24,10 @@
                                    target="_blank"
                                    style="font-weight: bold; color: #0d6efd;">Buy More eChecks</a>
                             </div>
+                        </setting>
+
+                        <setting string="Signer" help="Name printed as the check signer. Required before sending checks.">
+                            <field name="account_amacheck_signer"/>
                         </setting>
                     </block>
                 </app>

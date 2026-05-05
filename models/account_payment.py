@@ -84,7 +84,7 @@ class AccountPayment(models.Model):
             % (journal.amacheck_sync_message or "Unknown error")
         )
 
-    def _amacheck_checkeeper_payload(self, journal):
+    def _amacheck_checkeeper_payload(self, journal, signer):
         partner         = self.partner_id
         company_partner = self.company_id.partner_id
         bank_account    = journal.bank_account_id
@@ -121,7 +121,7 @@ class AccountPayment(models.Model):
                     },
                     "payer":  {"line1": company_partner.name},
                     "payee":  {"line1": partner.name},
-                    "signer": {"line1": company_partner.name},
+                    "signer": {"line1": signer},
                     "amount": int(round(self.amount * 100)),
                     "number": journal.amacheck_next_check_no,
                     "date":   fields.Date.today().strftime("%Y-%m-%d"),
@@ -148,11 +148,11 @@ class AccountPayment(models.Model):
             ],
         }
 
-    def _action_send_via_checkeeper(self, journal, checkeeper_api_key):
+    def _action_send_via_checkeeper(self, journal, checkeeper_api_key, signer):
         if not journal.amacheck_next_check_no:
             journal.amacheck_next_check_no = 10000
 
-        payload = self._amacheck_checkeeper_payload(journal)
+        payload = self._amacheck_checkeeper_payload(journal, signer)
         key_hint = "key:%d chars" % len(checkeeper_api_key) if checkeeper_api_key else "key:MISSING"
         result  = checkeeper_post(_CHECKEEPER_URL, checkeeper_api_key, payload)
 
@@ -200,6 +200,19 @@ class AccountPayment(models.Model):
 
         active_provider    = int(params.get_param("account_amacheck.active_provider", 1) or 1)
         checkeeper_api_key = params.get_param("account_amacheck.checkeeper_api_key") or ""
+        signer             = (params.get_param("account_amacheck.signer") or "").strip()
+
+        if not signer:
+            for payment in self:
+                payment.write({
+                    "amacheck_state":    "failed",
+                    "amacheck_inactive": False,
+                    "amacheck_error": (
+                        "Signer is not configured. "
+                        "Please go to Settings > AMACheck and fill in the Signer field."
+                    ),
+                })
+            return True
 
         if active_provider == _PROVIDER_CHECKEEPER and not checkeeper_api_key:
             for payment in self:
@@ -286,7 +299,7 @@ class AccountPayment(models.Model):
                 bank_journal = payment._amacheck_get_bank_journal()
 
                 if active_provider == _PROVIDER_CHECKEEPER:
-                    payment._action_send_via_checkeeper(bank_journal, checkeeper_api_key)
+                    payment._action_send_via_checkeeper(bank_journal, checkeeper_api_key, signer)
                     continue
 
                 bank_account_id = payment._amacheck_get_or_create_bank_account_id(bank_journal)
