@@ -162,10 +162,20 @@ class AccountPayment(models.Model):
         status_code, result = checkeeper_post(_CHECKEEPER_URL, checkeeper_api_key, payload)
 
         if status_code == 201:
-            # Success — Payment ID is the top-level id; check number from checks array or what we sent
-            payment_id   = result.get("id") or result.get("paymentId") or ""
-            checks       = result.get("checks") or []
-            check_number = str(checks[0].get("number", "")) if checks else check_no
+            # Try every known location Checkeeper may return the Payment ID
+            checks = result.get("checks") or []
+            payment_id = (
+                result.get("id")
+                or result.get("paymentId")
+                or result.get("payment_id")
+                or (checks[0].get("id") if checks else None)
+                or (checks[0].get("paymentId") if checks else None)
+                or (checks[0].get("payment_id") if checks else None)
+                or ("RAW:" + json.dumps(result))   # fallback so we can see what came back
+            )
+            check_number = (
+                str(checks[0].get("number", "")) if checks else check_no
+            ) or check_no
 
             self.write({
                 "amacheck_state":        "sent",
@@ -253,12 +263,14 @@ class AccountPayment(models.Model):
                 })
             return True
 
+        already_sent = self.filtered(lambda p: p.amacheck_state == "sent" or p.amacheck_zil_id)
+        if already_sent:
+            names = ", ".join(p.name or str(p.id) for p in already_sent)
+            raise UserError(
+                "The following payment(s) have already been sent and cannot be resent: %s" % names
+            )
+
         for payment in self:
-            if payment.amacheck_state == "sent" or payment.amacheck_zil_id:
-                payment.write({
-                    "amacheck_error": "Duplicate send blocked. This payment already has an AMA Check ID.",
-                })
-                continue
 
             if payment.payment_type != "outbound":
                 payment.write({
