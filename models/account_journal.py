@@ -7,6 +7,7 @@ class AccountJournal(models.Model):
     _inherit = "account.journal"
 
     amacheck_bank_account_id = fields.Char(string="Bank Account ID", copy=False)
+    amacheck_signer = fields.Char(string="Signer", copy=False)
 
     amacheck_assign_check_no = fields.Boolean(
         string="Assign Check Numbers",

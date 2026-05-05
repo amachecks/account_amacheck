@@ -17,11 +17,6 @@ class ResConfigSettings(models.TransientModel):
         readonly=True,
     )
 
-    account_amacheck_signer = fields.Char(
-        string="Signer",
-        config_parameter="account_amacheck.signer",
-    )
-
     account_amacheck_active_provider = fields.Integer(
         string="Active Provider ID",
         config_parameter="account_amacheck.active_provider",

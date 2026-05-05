@@ -18,6 +18,7 @@
                         <field name="amacheck_next_check_no"
                                string="Next Check Number"
                                invisible="not amacheck_assign_check_no"/>
+                        <field name="amacheck_signer" string="Signer"/>
                     </group>
 
                     <group invisible="not amacheck_is_ocw">

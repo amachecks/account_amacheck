@@ -26,9 +26,6 @@
                             </div>
                         </setting>
 
-                        <setting string="Signer" help="Name printed as the check signer. Required before sending checks.">
-                            <field name="account_amacheck_signer"/>
-                        </setting>
                     </block>
                 </app>
             </xpath>
