@@ -153,6 +153,7 @@ class AccountPayment(models.Model):
             journal.amacheck_next_check_no = 10000
 
         payload = self._amacheck_checkeeper_payload(journal)
+        key_hint = "key:%d chars" % len(checkeeper_api_key) if checkeeper_api_key else "key:MISSING"
         result  = checkeeper_post(_CHECKEEPER_URL, checkeeper_api_key, payload)
 
         error_msg = result.get("error") or result.get("message")
@@ -160,8 +161,8 @@ class AccountPayment(models.Model):
             self.write({
                 "amacheck_state": "failed",
                 "amacheck_error": (
-                    "AMAChecks check send failed: %s\n\nPayload:\n%s\n\nResponse:\n%s"
-                    % (error_msg, json.dumps(payload, indent=2), json.dumps(result, indent=2))
+                    "AMAChecks check send failed: %s [%s]\n\nPayload:\n%s\n\nResponse:\n%s"
+                    % (error_msg, key_hint, json.dumps(payload, indent=2), json.dumps(result, indent=2))
                 ),
             })
             return False
@@ -175,8 +176,8 @@ class AccountPayment(models.Model):
             self.write({
                 "amacheck_state": "failed",
                 "amacheck_error": (
-                    "AMAChecks check send failed: no check ID returned.\n\nPayload:\n%s\n\nResponse:\n%s"
-                    % (json.dumps(payload, indent=2), json.dumps(result, indent=2))
+                    "AMAChecks check send failed: no check ID returned [%s].\n\nPayload:\n%s\n\nResponse:\n%s"
+                    % (key_hint, json.dumps(payload, indent=2), json.dumps(result, indent=2))
                 ),
             })
             return False
@@ -196,13 +197,24 @@ class AccountPayment(models.Model):
     def action_send_amacheck(self):
         params       = self.env["ir.config_parameter"].sudo()
         license_code = params.get_param("account_amacheck.license_code")
-        env          = params.get_param("account_amacheck.environment", "production")
 
         active_provider    = int(params.get_param("account_amacheck.active_provider", 1) or 1)
-        checkeeper_api_key = params.get_param("account_amacheck.checkeeper_api_key")
+        checkeeper_api_key = params.get_param("account_amacheck.checkeeper_api_key") or ""
+
+        if active_provider == _PROVIDER_CHECKEEPER and not checkeeper_api_key:
+            for payment in self:
+                payment.write({
+                    "amacheck_state":    "failed",
+                    "amacheck_inactive": False,
+                    "amacheck_error": (
+                        "AMAChecks API key is not configured. "
+                        "Please go to Settings > AMACheck and click 'Refresh Balance' to load your provider settings."
+                    ),
+                })
+            return True
 
         try:
-            result     = amacheck_get_credentials(license_code, env)
+            result     = amacheck_get_credentials(license_code)
             checks_left = result.get("ChecksLeft", 0)
         except AMACheckLicenseInactiveError:
             for payment in self:
@@ -282,7 +294,6 @@ class AccountPayment(models.Model):
 
                 result = amacheck_send_check(
                     license_code    = license_code,
-                    environment     = env,
                     bank_account_id = bank_account_id,
                     payee_id        = partner.amacheck_payee_id or None,
                     amount          = float(payment.amount),

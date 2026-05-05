@@ -135,13 +135,12 @@ class AccountJournal(models.Model):
     def action_amacheck_sync_bank_account(self):
         params       = self.env["ir.config_parameter"].sudo()
         license_code = params.get_param("account_amacheck.license_code")
-        env          = params.get_param("account_amacheck.environment", "production")
 
         for journal in self:
             try:
                 journal._amacheck_validate_bank_journal()
                 bank_account_id = amacheck_sync_bank_account(
-                    license_code, env, journal._amacheck_bank_account_payload()
+                    license_code, journal._amacheck_bank_account_payload()
                 )
                 journal.write({
                     "amacheck_bank_account_id": bank_account_id,
@@ -159,11 +158,10 @@ class AccountJournal(models.Model):
     def action_amacheck_test_connection(self):
         params       = self.env["ir.config_parameter"].sudo()
         license_code = params.get_param("account_amacheck.license_code")
-        env          = params.get_param("account_amacheck.environment", "production")
 
         for journal in self:
             try:
-                result = amacheck_get_credentials(license_code, env)
+                result = amacheck_get_credentials(license_code)
                 journal.write({
                     "amacheck_sync_message": "Connection successful. eChecks available: %d" % result.get("ChecksLeft", 0),
                 })

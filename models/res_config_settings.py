@@ -6,13 +6,6 @@ from .amacheck_mixin import amacheck_get_credentials
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
-    account_amacheck_environment = fields.Selection(
-        selection=[("sandbox", "Sandbox"), ("production", "Production")],
-        string="AMACheck Environment",
-        config_parameter="account_amacheck.environment",
-        default="production",
-    )
-
     account_amacheck_license_code = fields.Char(
         string="License Code",
         config_parameter="account_amacheck.license_code",
@@ -30,12 +23,6 @@ class ResConfigSettings(models.TransientModel):
         readonly=True,
     )
 
-    account_amacheck_allow_sandbox = fields.Boolean(
-        string="Allow Sandbox Mode",
-        config_parameter="account_amacheck.allow_sandbox",
-        readonly=True,
-    )
-
     account_amacheck_is_ocw = fields.Boolean(
         string="Is Online Check Writer",
         compute="_compute_account_amacheck_is_ocw",
@@ -49,10 +36,9 @@ class ResConfigSettings(models.TransientModel):
     def action_amacheck_refresh_status(self):
         params = self.env["ir.config_parameter"].sudo()
         license_code = self.account_amacheck_license_code
-        environment = params.get_param("account_amacheck.environment", "production")
 
         try:
-            result = amacheck_get_credentials(license_code, environment)
+            result = amacheck_get_credentials(license_code)
         except Exception as e:
             raise UserError(str(e))
 
@@ -63,11 +49,6 @@ class ResConfigSettings(models.TransientModel):
 
         if "ProviderAPIKey" in result:
             params.set_param("account_amacheck.checkeeper_api_key", result["ProviderAPIKey"])
-
-        allow_sandbox = result.get("AllowSandbox", True)
-        params.set_param("account_amacheck.allow_sandbox", "1" if allow_sandbox else "")
-        if not allow_sandbox:
-            params.set_param("account_amacheck.environment", "production")
 
         assign_check_no = result.get("AssignCheckNo", False)
         params.set_param("account_amacheck.assign_check_no", "1" if assign_check_no else "")

@@ -44,7 +44,7 @@ def _post(endpoint, payload):
         raise Exception("Could not reach AMAChecks API: %s" % str(e))
 
 
-def amacheck_get_credentials(license_code, environment="production"):
+def amacheck_get_credentials(license_code):
     """Validate license and return the full API result dict.
     Raises AMACheckLicenseInactiveError if inactive, Exception for other failures.
     """
@@ -56,7 +56,6 @@ def amacheck_get_credentials(license_code, environment="production"):
 
     result = _post("api_validate_license.php", {
         "LicenseCode": license_code,
-        "Environment": environment,
     })
 
     if not result.get("success"):
@@ -74,9 +73,9 @@ def amacheck_get_credentials(license_code, environment="production"):
     return result
 
 
-def amacheck_sync_bank_account(license_code, environment, bank_payload):
+def amacheck_sync_bank_account(license_code, bank_payload):
     """Sync a bank account with the check provider. Returns bankAccountId."""
-    payload = {"LicenseCode": license_code, "environment": environment}
+    payload = {"LicenseCode": license_code}
     payload.update(bank_payload)
     result = _post("api_sync_bank_account.php", payload)
     if not result.get("success"):
@@ -84,11 +83,10 @@ def amacheck_sync_bank_account(license_code, environment, bank_payload):
     return result["bankAccountId"]
 
 
-def amacheck_send_check(license_code, environment, bank_account_id, payee_id, amount, memo, vendor):
+def amacheck_send_check(license_code, bank_account_id, payee_id, amount, memo, vendor):
     """Send a check via OCW. Returns the full result dict with checkId, checkNumber, payeeId, checksLeft."""
     result = _post("api_send_check.php", {
         "LicenseCode":   license_code,
-        "environment":   environment,
         "bankAccountId": bank_account_id,
         "payeeId":       payee_id or None,
         "amount":        amount,
