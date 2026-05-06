@@ -108,4 +108,3 @@ Then in Odoo:
 | "Signer is not set" | Open the bank journal and fill in the Signer field |
 | "AMAChecks API key is not configured" | Click Refresh Balance in Settings → AMACheck |
 | Vendor address errors | Open the vendor record and complete all address fields |
-| Connection errors | Check that your Odoo server IP is whitelisted on the AMAChecks API |

@@ -61,3 +61,6 @@ class ResConfigSettings(models.TransientModel):
         params.set_param("account_amacheck.is_ocw", "1" if provider_name == "OnlineCheckWriter" else "")
 
         return {"type": "ir.actions.client", "tag": "reload"}
+
+    def action_view_transactions(self):
+        return self.env["amacheck.transaction.wizard"].action_open()

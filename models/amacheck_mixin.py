@@ -116,6 +116,16 @@ def amacheck_log_transaction(license_code, check_no, payee, bank, bank_account, 
         return None
 
 
+def amacheck_get_transactions(license_code, api_key):
+    """Fetch the TransactionLog for this license from the PHP API. Returns a list of dicts."""
+    result = _post("api_get_transactions.php", {
+        "LicenseCode": license_code,
+    }, api_key=api_key)
+    if not result.get("success"):
+        raise Exception(result.get("error", "Failed to fetch transactions"))
+    return result.get("transactions", [])
+
+
 def checkeeper_post(url, api_key, payload):
     """POST to the Checkeeper API with Bearer auth.
     Returns (http_status_code, result_dict).

@@ -27,6 +27,16 @@
                         </setting>
 
                     </block>
+
+                    <block title="Transaction Log">
+                        <setting string="View check send history for this license">
+                            <button name="action_view_transactions"
+                                    string="View Transaction Log"
+                                    type="object"
+                                    class="btn-secondary"/>
+                        </setting>
+                    </block>
+
                 </app>
             </xpath>
         </field>
