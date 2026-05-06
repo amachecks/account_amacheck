@@ -5,7 +5,7 @@
         <field name="arch" type="xml">
             <form string="AMACheck Transaction Log">
                 <field name="line_ids" readonly="1">
-                    <list string="Transactions" editable="0" decoration-danger="result != '' and result != 'OK'">
+                    <list string="Transactions" decoration-danger="result != '' and result != 'OK'">
                         <field name="trans_date"   string="Transaction Date" optional="show"/>
                         <field name="check_no"     string="Check Number"     optional="show"/>
                         <field name="payee"        string="Payee"            optional="show"/>
