@@ -13,11 +13,11 @@
 **Option A: Git clone (recommended)**
 ```bash
 cd /opt/odoo/addons
-git clone https://github.com/amachecks/public.git account_amacheck
+git clone https://github.com/amachecks/account_amacheck.git account_amacheck
 ```
 
 **Option B: Download ZIP**
-1. Go to https://github.com/amachecks/public
+1. Go to https://github.com/amachecks/account_amacheck
 2. Click **Code → Download ZIP**
 3. Extract the folder to your Odoo addons directory and rename it `account_amacheck`
 
