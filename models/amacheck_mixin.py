@@ -1,7 +1,6 @@
 import json
 import urllib.request
 import urllib.error
-import ssl
 
 _BASE_URL = "https://api.amachecks.com/private"
 
@@ -10,11 +9,6 @@ _HEADERS = {
     "Accept": "application/json",
     "User-Agent": "AMAChecks-Odoo/1.0",
 }
-
-# Temporary: bypass SSL cert mismatch until api.amachecks.com SSL is resolved
-_SSL_CTX = ssl.create_default_context()
-_SSL_CTX.check_hostname = False
-_SSL_CTX.verify_mode = ssl.CERT_NONE
 
 
 class AMACheckLicenseInactiveError(Exception):
@@ -32,7 +26,7 @@ def _post(endpoint, payload, api_key=None):
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=15, context=_SSL_CTX) as response:
+        with urllib.request.urlopen(req, timeout=15) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         try:
@@ -64,12 +58,10 @@ def amacheck_get_credentials(license_code):
         error_lower = (error or "").lower()
         if "inactive" in error_lower:
             raise AMACheckLicenseInactiveError()
-        if "invalid" in error_lower:
-            raise Exception(
-                "Invalid AMAChecks license code. "
-                "Please check the License Code in Settings > AMACheck."
-            )
-        raise Exception("AMAChecks license validation failed: %s" % error)
+        raise Exception(
+            "Invalid AMAChecks license code. "
+            "Please check the License Code in Settings > AMACheck."
+        )
 
     return result
 
