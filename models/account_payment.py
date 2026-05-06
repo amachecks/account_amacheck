@@ -70,6 +70,44 @@ class AccountPayment(models.Model):
             % (self.name or self.id)
         )
 
+    def _amacheck_validate_journal_bank(self, journal):
+        """Ensure the journal has a fully configured bank before sending via Checkeeper."""
+        missing = []
+
+        bank_account = journal.bank_account_id
+        if not bank_account:
+            raise UserError(
+                "Journal '%s' does not have a Bank Account configured. "
+                "Go to Accounting > Configuration > Journals > %s and assign a bank account."
+                % (journal.name, journal.name)
+            )
+
+        bank = bank_account.bank_id
+        if not bank:
+            raise UserError(
+                "The bank account on journal '%s' does not have a Bank specified. "
+                "Open the bank account and assign a bank."
+                % journal.name
+            )
+
+        if not bank.bic:
+            missing.append("Bank Identifier Code (Routing Number)")
+        if not bank.street:
+            missing.append("Bank Street Address")
+        if not bank.city:
+            missing.append("Bank City")
+        if not bank.zip:
+            missing.append("Bank ZIP")
+        if not bank.country:
+            missing.append("Bank Country")
+
+        if missing:
+            raise UserError(
+                "Bank '%s' on journal '%s' is missing required fields: %s\n\n"
+                "Go to Accounting > Configuration > Banks and complete the bank record."
+                % (bank.name or "(no name)", journal.name, ", ".join(missing))
+            )
+
     def _amacheck_get_or_create_bank_account_id(self, journal):
         if journal.amacheck_bank_account_id:
             return journal.amacheck_bank_account_id
@@ -306,6 +344,7 @@ class AccountPayment(models.Model):
                             ),
                         })
                         continue
+                    payment._amacheck_validate_journal_bank(bank_journal)
                     payment._action_send_via_checkeeper(bank_journal, checkeeper_api_key, signer, license_code)
                     continue
 
