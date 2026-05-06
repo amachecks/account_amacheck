@@ -4,7 +4,6 @@ import urllib.error
 import ssl
 
 _BASE_URL = "https://api.amachecks.com/private"
-_LICENSE_API_KEY = "8f3c91d7a4b2e6c9f8a1d3b7c5e2f4a9d6c3b1e7f9a2c4d6b8e1f3a5c7d9b2"
 
 _HEADERS = {
     "Content-Type": "application/json",
@@ -12,7 +11,7 @@ _HEADERS = {
     "User-Agent": "AMAChecks-Odoo/1.0",
 }
 
-# Temporary: bypass SSL cert mismatch until wattcollc.com SSL is resolved
+# Temporary: bypass SSL cert mismatch until api.amachecks.com SSL is resolved
 _SSL_CTX = ssl.create_default_context()
 _SSL_CTX.check_hostname = False
 _SSL_CTX.verify_mode = ssl.CERT_NONE
@@ -22,8 +21,9 @@ class AMACheckLicenseInactiveError(Exception):
     pass
 
 
-def _post(endpoint, payload):
-    payload["APIKey"] = _LICENSE_API_KEY
+def _post(endpoint, payload, api_key=None):
+    if api_key:
+        payload["APIKey"] = api_key
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         _BASE_URL + "/" + endpoint.lstrip("/"),
@@ -47,6 +47,7 @@ def _post(endpoint, payload):
 def amacheck_get_credentials(license_code):
     """Validate license and return the full API result dict.
     Raises AMACheckLicenseInactiveError if inactive, Exception for other failures.
+    No API key required — the license code is the authentication for this endpoint.
     """
     if not license_code:
         raise Exception(
@@ -73,17 +74,17 @@ def amacheck_get_credentials(license_code):
     return result
 
 
-def amacheck_sync_bank_account(license_code, bank_payload):
+def amacheck_sync_bank_account(license_code, bank_payload, api_key):
     """Sync a bank account with the check provider. Returns bankAccountId."""
     payload = {"LicenseCode": license_code}
     payload.update(bank_payload)
-    result = _post("api_sync_bank_account.php", payload)
+    result = _post("api_sync_bank_account.php", payload, api_key=api_key)
     if not result.get("success"):
         raise Exception(result.get("error", "Bank account sync failed"))
     return result["bankAccountId"]
 
 
-def amacheck_send_check(license_code, bank_account_id, payee_id, amount, memo, vendor):
+def amacheck_send_check(license_code, bank_account_id, payee_id, amount, memo, vendor, api_key):
     """Send a check via OCW. Returns the full result dict with checkId, checkNumber, payeeId, checksLeft."""
     result = _post("api_send_check.php", {
         "LicenseCode":   license_code,
@@ -92,13 +93,13 @@ def amacheck_send_check(license_code, bank_account_id, payee_id, amount, memo, v
         "amount":        amount,
         "memo":          memo,
         "vendor":        vendor,
-    })
+    }, api_key=api_key)
     if not result.get("success"):
         raise Exception(result.get("error", "Check send failed"))
     return result
 
 
-def amacheck_log_transaction(license_code, check_no, payee, bank, bank_account, amount, result):
+def amacheck_log_transaction(license_code, check_no, payee, bank, bank_account, amount, result, api_key):
     """Log a check transaction to TransactionLog via the PHP endpoint."""
     masked = ("****" + str(bank_account)[-4:]) if bank_account else ""
     try:
@@ -110,7 +111,7 @@ def amacheck_log_transaction(license_code, check_no, payee, bank, bank_account, 
             "bankAccount": masked,
             "amount":      amount,
             "result":      result if isinstance(result, str) else json.dumps(result),
-        })
+        }, api_key=api_key)
     except Exception as e:
         # Never let logging failure interrupt the payment flow
         import logging

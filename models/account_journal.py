@@ -134,14 +134,15 @@ class AccountJournal(models.Model):
         }
 
     def action_amacheck_sync_bank_account(self):
-        params       = self.env["ir.config_parameter"].sudo()
-        license_code = params.get_param("account_amacheck.license_code")
+        params          = self.env["ir.config_parameter"].sudo()
+        license_code    = params.get_param("account_amacheck.license_code")
+        license_api_key = params.get_param("account_amacheck.license_api_key") or ""
 
         for journal in self:
             try:
                 journal._amacheck_validate_bank_journal()
                 bank_account_id = amacheck_sync_bank_account(
-                    license_code, journal._amacheck_bank_account_payload()
+                    license_code, journal._amacheck_bank_account_payload(), license_api_key
                 )
                 journal.write({
                     "amacheck_bank_account_id": bank_account_id,

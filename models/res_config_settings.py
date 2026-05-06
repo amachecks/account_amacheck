@@ -50,6 +50,9 @@ class ResConfigSettings(models.TransientModel):
         if "ProviderAPIKey" in result:
             params.set_param("account_amacheck.checkeeper_api_key", result["ProviderAPIKey"])
 
+        if "LicenseAPIKey" in result:
+            params.set_param("account_amacheck.license_api_key", result["LicenseAPIKey"])
+
         assign_check_no = result.get("AssignCheckNo", False)
         params.set_param("account_amacheck.assign_check_no", "1" if assign_check_no else "")
 

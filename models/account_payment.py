@@ -186,7 +186,7 @@ class AccountPayment(models.Model):
             ],
         }
 
-    def _action_send_via_checkeeper(self, journal, checkeeper_api_key, signer, license_code):
+    def _action_send_via_checkeeper(self, journal, checkeeper_api_key, signer, license_code, license_api_key):
         if not journal.amacheck_next_check_no:
             journal.amacheck_next_check_no = 10000
 
@@ -214,7 +214,7 @@ class AccountPayment(models.Model):
             })
             amacheck_log_transaction(
                 license_code, check_number, self.partner_id.name or "",
-                bank_name, acc_number, float(self.amount), result,
+                bank_name, acc_number, float(self.amount), result, license_api_key,
             )
             journal.amacheck_next_check_no += 1
             return True
@@ -235,13 +235,14 @@ class AccountPayment(models.Model):
         })
         amacheck_log_transaction(
             license_code, "", self.partner_id.name or "",
-            bank_name, acc_number, float(self.amount), error_text,
+            bank_name, acc_number, float(self.amount), error_text, license_api_key,
         )
         return False
 
     def action_send_amacheck(self):
-        params       = self.env["ir.config_parameter"].sudo()
-        license_code = params.get_param("account_amacheck.license_code")
+        params          = self.env["ir.config_parameter"].sudo()
+        license_code    = params.get_param("account_amacheck.license_code")
+        license_api_key = params.get_param("account_amacheck.license_api_key") or ""
 
         active_provider    = int(params.get_param("account_amacheck.active_provider", 1) or 1)
         checkeeper_api_key = params.get_param("account_amacheck.checkeeper_api_key") or ""
@@ -345,7 +346,7 @@ class AccountPayment(models.Model):
                         })
                         continue
                     payment._amacheck_validate_journal_bank(bank_journal)
-                    payment._action_send_via_checkeeper(bank_journal, checkeeper_api_key, signer, license_code)
+                    payment._action_send_via_checkeeper(bank_journal, checkeeper_api_key, signer, license_code, license_api_key)
                     continue
 
                 bank_account_id = payment._amacheck_get_or_create_bank_account_id(bank_journal)
@@ -358,6 +359,7 @@ class AccountPayment(models.Model):
                     amount          = float(payment.amount),
                     memo            = payment.name or "Odoo Payment",
                     vendor          = payment._amacheck_vendor_payload(partner),
+                    api_key         = license_api_key,
                 )
 
                 if result.get("payeeId") and result["payeeId"] != partner.amacheck_payee_id:
