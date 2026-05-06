@@ -212,10 +212,15 @@ class AccountPayment(models.Model):
                 "amacheck_error":        False,
                 "amacheck_inactive":     False,
             })
-            amacheck_log_transaction(
+            checks_left = amacheck_log_transaction(
                 license_code, check_number, self.partner_id.name or "",
                 bank_name, acc_number, float(self.amount), result, license_api_key,
+                decrement=True,
             )
+            if checks_left is not None:
+                self.env["ir.config_parameter"].sudo().set_param(
+                    "account_amacheck.checks_left", str(checks_left)
+                )
             journal.amacheck_next_check_no += 1
             return True
 

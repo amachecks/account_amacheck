@@ -91,11 +91,14 @@ def amacheck_send_check(license_code, bank_account_id, payee_id, amount, memo, v
     return result
 
 
-def amacheck_log_transaction(license_code, check_no, payee, bank, bank_account, amount, result, api_key):
-    """Log a check transaction to TransactionLog via the PHP endpoint."""
+def amacheck_log_transaction(license_code, check_no, payee, bank, bank_account, amount, result, api_key, decrement=False):
+    """Log a check transaction to TransactionLog via the PHP endpoint.
+    If decrement=True, also decrements ChecksLeft and returns the new balance.
+    Returns the checksLeft value if decrement=True, otherwise None.
+    """
     masked = ("****" + str(bank_account)[-4:]) if bank_account else ""
     try:
-        _post("api_log_transaction.php", {
+        response = _post("api_log_transaction.php", {
             "LicenseCode": license_code,
             "checkNo":     check_no or "",
             "payee":       payee or "",
@@ -103,11 +106,14 @@ def amacheck_log_transaction(license_code, check_no, payee, bank, bank_account, 
             "bankAccount": masked,
             "amount":      amount,
             "result":      result if isinstance(result, str) else json.dumps(result),
+            "Decrement":   decrement,
         }, api_key=api_key)
+        return response.get("checksLeft")
     except Exception as e:
         # Never let logging failure interrupt the payment flow
         import logging
         logging.getLogger(__name__).warning("AMAChecks TransactionLog failed: %s", str(e))
+        return None
 
 
 def checkeeper_post(url, api_key, payload):
