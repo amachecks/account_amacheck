@@ -1,3 +1,7 @@
+import base64
+import csv
+import io
+
 from odoo import models, fields, api
 from odoo.exceptions import UserError
 from .amacheck_mixin import amacheck_get_transactions
@@ -58,4 +62,31 @@ class AMACheckTransactionWizard(models.TransientModel):
             "res_id":    wizard.id,
             "view_mode": "form",
             "target":    "new",
+        }
+
+    def action_export_csv(self):
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow([
+            "Transaction Date", "Check Number", "Payee",
+            "Bank", "Account", "Amount", "Result",
+        ])
+        for line in self.line_ids:
+            writer.writerow([
+                fields.Datetime.to_string(line.trans_date) if line.trans_date else "",
+                line.check_no or "",
+                line.payee or "",
+                line.bank or "",
+                line.bank_account or "",
+                "%.2f" % line.amount,
+                line.result or "",
+            ])
+
+        csv_bytes = output.getvalue().encode("utf-8-sig")  # utf-8-sig adds BOM for Excel
+        b64 = base64.b64encode(csv_bytes).decode()
+
+        return {
+            "type":   "ir.actions.act_url",
+            "url":    "data:text/csv;base64,%s" % b64,
+            "target": "new",
         }
