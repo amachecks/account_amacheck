@@ -29,11 +29,13 @@ class AMACheckTransactionWizard(models.TransientModel):
         "amacheck.transaction.line", "wizard_id",
         string="Transactions", readonly=True,
     )
+    csv_file     = fields.Binary(string="CSV File", readonly=True, attachment=False)
+    csv_filename = fields.Char(string="CSV Filename", readonly=True)
 
     @api.model
     def action_open(self):
-        params         = self.env["ir.config_parameter"].sudo()
-        license_code   = params.get_param("account_amacheck.license_code")
+        params          = self.env["ir.config_parameter"].sudo()
+        license_code    = params.get_param("account_amacheck.license_code")
         license_api_key = params.get_param("account_amacheck.license_api_key") or ""
 
         try:
@@ -81,11 +83,15 @@ class AMACheckTransactionWizard(models.TransientModel):
                 "%.2f" % line.amount,
             ])
 
-        csv_bytes = output.getvalue().encode("utf-8-sig")  # utf-8-sig adds BOM for Excel
-        b64 = base64.b64encode(csv_bytes).decode()
+        csv_bytes = output.getvalue().encode("utf-8-sig")  # BOM for Excel compatibility
+
+        self.write({
+            "csv_file":     base64.b64encode(csv_bytes),
+            "csv_filename": "amacheck_transactions.csv",
+        })
 
         return {
             "type":   "ir.actions.act_url",
-            "url":    "data:text/csv;base64,%s" % b64,
+            "url":    "/web/content?model=amacheck.transaction.wizard&id=%d&field=csv_file&filename=%s&download=true" % (self.id, self.csv_filename),
             "target": "new",
         }
