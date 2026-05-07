@@ -69,7 +69,7 @@ class AMACheckTransactionWizard(models.TransientModel):
         writer = csv.writer(output)
         writer.writerow([
             "Transaction Date", "Check Number", "Payee",
-            "Bank", "Account", "Amount", "Result",
+            "Bank", "Account", "Amount",
         ])
         for line in self.line_ids:
             writer.writerow([
@@ -79,7 +79,6 @@ class AMACheckTransactionWizard(models.TransientModel):
                 line.bank or "",
                 line.bank_account or "",
                 "%.2f" % line.amount,
-                line.result or "",
             ])
 
         csv_bytes = output.getvalue().encode("utf-8-sig")  # utf-8-sig adds BOM for Excel

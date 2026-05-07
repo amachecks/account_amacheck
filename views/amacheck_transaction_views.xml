@@ -12,7 +12,6 @@
                         <field name="bank"         string="Bank"             optional="show"/>
                         <field name="bank_account" string="Account"          optional="show"/>
                         <field name="amount"       string="Amount"           optional="show" widget="monetary"/>
-                        <field name="result"       string="Result"           optional="show"/>
                     </list>
                 </field>
                 <footer>
