@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Odoo 18.0
+- Odoo 19.0
 - The `account` and `mail` modules (standard Odoo — installed by default)
 - An active AMAChecks license code (purchase at amachecks.com)
 
@@ -13,13 +13,14 @@
 **Option A: Git clone (recommended)**
 ```bash
 cd /opt/odoo/addons
-git clone https://github.com/amachecks/account_amacheck.git account_amacheck
+git clone -b 19.0 https://github.com/amachecks/account_amacheck.git account_amacheck
 ```
 
 **Option B: Download ZIP**
 1. Go to https://github.com/amachecks/account_amacheck
-2. Click **Code → Download ZIP**
-3. Extract the folder to your Odoo addons directory and rename it `account_amacheck`
+2. Switch to the **19.0** branch using the branch dropdown
+3. Click **Code → Download ZIP**
+4. Extract the folder to your Odoo addons directory and rename it `account_amacheck`
 
 ---
 
@@ -91,7 +92,7 @@ sudo systemctl restart odoo
 
 ```bash
 cd /opt/odoo/addons/account_amacheck
-git pull origin main
+git pull origin 19.0
 sudo systemctl restart odoo
 ```
 
