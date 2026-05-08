@@ -116,6 +116,17 @@ def amacheck_log_transaction(license_code, check_no, payee, bank, bank_account, 
         return None
 
 
+def amacheck_get_check_status(check_id, license_code, api_key):
+    """Fetch the current status of a check from the provider via the PHP API."""
+    result = _post("api_get_check_status.php", {
+        "LicenseCode": license_code,
+        "CheckID":     check_id,
+    }, api_key=api_key)
+    if not result.get("success"):
+        raise Exception(result.get("error", "Failed to fetch check status"))
+    return result
+
+
 def amacheck_get_transactions(license_code, api_key):
     """Fetch the TransactionLog for this license from the PHP API. Returns a list of dicts."""
     result = _post("api_get_transactions.php", {
