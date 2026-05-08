@@ -47,9 +47,11 @@
                             <field name="bank_account" string="Account"/>
                         </group>
                     </group>
-                    <field name="wizard_id"    invisible="1"/>
+                    <field name="wizard_id"     invisible="1"/>
                     <field name="checkeeper_id" invisible="1"/>
-                    <field name="result"       invisible="1"/>
+                    <group string="Result">
+                        <field name="result" string="" nolabel="1" widget="text" readonly="1"/>
+                    </group>
                 </sheet>
                 <footer>
                     <button string="Close" class="btn-secondary" special="cancel"/>
