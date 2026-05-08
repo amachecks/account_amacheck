@@ -32,15 +32,15 @@ class AMACheckTransactionLine(models.TransientModel):
     bank_account   = fields.Char(string="Account", readonly=True)
     amount         = fields.Float(string="Amount", digits=(16, 2), readonly=True)
     result         = fields.Text(string="Result", readonly=True)
-    checkeeper_id  = fields.Char(string="Checkeeper Check ID", readonly=True)
+    checkeeper_id  = fields.Char(string="Check ID", readonly=True)
 
     def action_check_status(self):
         self.ensure_one()
 
         if not self.checkeeper_id:
             raise UserError(
-                "No Checkeeper check ID found for check #%s. "
-                "Status is only available for checks sent via Checkeeper."
+                "No provider check ID found for check #%s. "
+                "Status is only available for checks sent via the online check service."
                 % (self.check_no or "(unknown)")
             )
 
@@ -94,7 +94,7 @@ class AMACheckStatusPopup(models.TransientModel):
     _description = "AMACheck Check Status"
 
     check_no       = fields.Char(string="Check Number", readonly=True)
-    checkeeper_id  = fields.Char(string="Checkeeper Check ID", readonly=True)
+    checkeeper_id  = fields.Char(string="Check ID", readonly=True)
     status         = fields.Char(string="Status", readonly=True)
     raw_status     = fields.Char(string="Raw Status", readonly=True)
     tracking_no    = fields.Char(string="Tracking Number", readonly=True)
@@ -125,7 +125,7 @@ class AMACheckTransactionWizard(models.TransientModel):
         except Exception as e:
             raise UserError(str(e))
 
-        # Build a lookup of check_number -> amacheck_zil_id (Checkeeper check ID) from account.payment records
+        # Build a lookup of check_number -> provider check ID from account.payment records
         checkeeper_map = {}
         payments = self.env["account.payment"].search([
             ("amacheck_zil_id", "!=", False),
