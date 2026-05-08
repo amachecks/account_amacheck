@@ -1,3 +1,4 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 amacheck_transaction_wizard_access,amacheck.transaction.wizard access,model_amacheck_transaction_wizard,base.group_user,1,1,1,1
 amacheck_transaction_line_access,amacheck.transaction.line access,model_amacheck_transaction_line,base.group_user,1,1,1,1
+amacheck_status_popup_access,amacheck.status.popup access,model_amacheck_status_popup,base.group_user,1,1,1,1

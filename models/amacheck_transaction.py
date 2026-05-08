@@ -4,21 +4,102 @@ import io
 
 from odoo import models, fields, api
 from odoo.exceptions import UserError
-from .amacheck_mixin import amacheck_get_transactions
+from .amacheck_mixin import amacheck_get_transactions, amacheck_get_check_status
+
+# Human-readable labels for check status values
+_STATUS_LABELS = {
+    "processing":  "Processing",
+    "ready":       "Ready",
+    "printed":     "Printed",
+    "mailed":      "Mailed",
+    "pre_transit": "Pre-Transit",
+    "transit":     "In Transit",
+    "delivery":    "Out for Delivery",
+    "delivered":   "Delivered",
+    "pdf":         "PDF Returned",
+}
 
 
 class AMACheckTransactionLine(models.TransientModel):
     _name = "amacheck.transaction.line"
     _description = "AMACheck Transaction Log Line"
 
-    wizard_id    = fields.Many2one("amacheck.transaction.wizard", ondelete="cascade")
-    trans_date   = fields.Datetime(string="Transaction Date", readonly=True)
-    check_no     = fields.Char(string="Check Number", readonly=True)
-    payee        = fields.Char(string="Payee", readonly=True)
-    bank         = fields.Char(string="Bank", readonly=True)
-    bank_account = fields.Char(string="Account", readonly=True)
-    amount       = fields.Float(string="Amount", digits=(16, 2), readonly=True)
-    result       = fields.Text(string="Result", readonly=True)
+    wizard_id      = fields.Many2one("amacheck.transaction.wizard", ondelete="cascade")
+    trans_date     = fields.Datetime(string="Transaction Date", readonly=True)
+    check_no       = fields.Char(string="Check Number", readonly=True)
+    payee          = fields.Char(string="Payee", readonly=True)
+    bank           = fields.Char(string="Bank", readonly=True)
+    bank_account   = fields.Char(string="Account", readonly=True)
+    amount         = fields.Float(string="Amount", digits=(16, 2), readonly=True)
+    result         = fields.Text(string="Result", readonly=True)
+    checkeeper_id  = fields.Char(string="Check ID", readonly=True)
+
+    def action_check_status(self):
+        self.ensure_one()
+
+        if not self.checkeeper_id:
+            raise UserError(
+                "No provider check ID found for check #%s. "
+                "Status is only available for checks sent via the online check service."
+                % (self.check_no or "(unknown)")
+            )
+
+        params          = self.env["ir.config_parameter"].sudo()
+        license_code    = params.get_param("account_amacheck.license_code")
+        license_api_key = params.get_param("account_amacheck.license_api_key") or ""
+
+        try:
+            result = amacheck_get_check_status(self.checkeeper_id, license_code, license_api_key)
+        except Exception as e:
+            raise UserError("Could not retrieve check status: %s" % str(e))
+
+        raw_status  = result.get("status", "unknown")
+        label       = _STATUS_LABELS.get(raw_status, raw_status.replace("_", " ").title())
+        data        = result.get("data") or {}
+
+        # Use the most recent non-null date as "Last Updated"
+        # Provider returns created/printed/mailed — no updated_at field
+        updated_at = (
+            data.get("mailed")
+            or data.get("printed")
+            or data.get("updated_at")
+            or data.get("created")
+            or ""
+        )
+
+        popup = self.env["amacheck.status.popup"].create({
+            "check_no":      self.check_no or "",
+            "checkeeper_id": self.checkeeper_id,
+            "status":        label,
+            "raw_status":    raw_status,
+            "tracking_no":   data.get("tracking_number") or "",
+            "carrier":       data.get("carrier") or "",
+            "est_delivery":  data.get("estimated_delivery") or "",
+            "updated_at":    updated_at,
+        })
+
+        return {
+            "type":      "ir.actions.act_window",
+            "name":      "Check Status",
+            "res_model": "amacheck.status.popup",
+            "res_id":    popup.id,
+            "view_mode": "form",
+            "target":    "new",
+        }
+
+
+class AMACheckStatusPopup(models.TransientModel):
+    _name = "amacheck.status.popup"
+    _description = "AMACheck Check Status"
+
+    check_no       = fields.Char(string="Check Number", readonly=True)
+    checkeeper_id  = fields.Char(string="Check ID", readonly=True)
+    status         = fields.Char(string="Status", readonly=True)
+    raw_status     = fields.Char(string="Raw Status", readonly=True)
+    tracking_no    = fields.Char(string="Tracking Number", readonly=True)
+    carrier        = fields.Char(string="Carrier", readonly=True)
+    est_delivery   = fields.Char(string="Estimated Delivery", readonly=True)
+    updated_at     = fields.Char(string="Last Updated", readonly=True)
 
 
 class AMACheckTransactionWizard(models.TransientModel):
@@ -43,16 +124,27 @@ class AMACheckTransactionWizard(models.TransientModel):
         except Exception as e:
             raise UserError(str(e))
 
+        # Build a lookup of check_number -> provider check ID from account.payment records
+        checkeeper_map = {}
+        payments = self.env["account.payment"].search([
+            ("amacheck_zil_id", "!=", False),
+            ("amacheck_check_number", "!=", False),
+        ])
+        for p in payments:
+            checkeeper_map[p.amacheck_check_number] = p.amacheck_zil_id
+
         lines = []
         for t in transactions:
+            check_no = t.get("CheckNo") or ""
             lines.append((0, 0, {
-                "trans_date":   t.get("TransDate") or False,
-                "check_no":     t.get("CheckNo") or "",
-                "payee":        t.get("Payee") or "",
-                "bank":         t.get("Bank") or "",
-                "bank_account": t.get("BankAccount") or "",
-                "amount":       float(t.get("Amount") or 0),
-                "result":       t.get("Result") or "",
+                "trans_date":    t.get("TransDate") or False,
+                "check_no":      check_no,
+                "payee":         t.get("Payee") or "",
+                "bank":          t.get("Bank") or "",
+                "bank_account":  t.get("BankAccount") or "",
+                "amount":        float(t.get("Amount") or 0),
+                "result":        t.get("Result") or "",
+                "checkeeper_id": checkeeper_map.get(check_no, ""),
             }))
 
         wizard = self.create({"line_ids": lines})
