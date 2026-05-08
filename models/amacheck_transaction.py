@@ -57,26 +57,25 @@ class AMACheckTransactionLine(models.TransientModel):
         label       = _STATUS_LABELS.get(raw_status, raw_status.replace("_", " ").title())
         data        = result.get("data") or {}
 
-        # Build detail lines from available data
-        details = []
-        if data.get("tracking_number"):
-            details.append("Tracking: %s" % data["tracking_number"])
-        if data.get("carrier"):
-            details.append("Carrier: %s" % data["carrier"])
-        if data.get("estimated_delivery"):
-            details.append("Estimated Delivery: %s" % data["estimated_delivery"])
-        if data.get("updated_at"):
-            details.append("Last Updated: %s" % data["updated_at"])
+        # Use the most recent non-null date as "Last Updated"
+        # Checkeeper returns created/printed/mailed — no updated_at field
+        updated_at = (
+            data.get("mailed")
+            or data.get("printed")
+            or data.get("updated_at")
+            or data.get("created")
+            or ""
+        )
 
         popup = self.env["amacheck.status.popup"].create({
-            "check_no":     self.check_no or "",
+            "check_no":      self.check_no or "",
             "checkeeper_id": self.checkeeper_id,
-            "status":       label,
-            "raw_status":   raw_status,
-            "tracking_no":  data.get("tracking_number") or "",
-            "carrier":      data.get("carrier") or "",
-            "est_delivery": data.get("estimated_delivery") or "",
-            "updated_at":   data.get("updated_at") or "",
+            "status":        label,
+            "raw_status":    raw_status,
+            "tracking_no":   data.get("tracking_number") or "",
+            "carrier":       data.get("carrier") or "",
+            "est_delivery":  data.get("estimated_delivery") or "",
+            "updated_at":    updated_at,
         })
 
         return {
