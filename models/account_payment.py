@@ -22,6 +22,36 @@ class AccountPayment(models.Model):
     amacheck_error        = fields.Text(string="Errors")
     amacheck_inactive     = fields.Boolean(string="License Inactive", default=False, copy=False)
 
+    def _amacheck_validate_company(self):
+        """Ensure the Odoo company has all fields required for the check from_address/bundle_return."""
+        self.ensure_one()
+        company_partner = self.company_id.partner_id
+        missing = []
+
+        if not company_partner.name:
+            missing.append("Company Name")
+        if not company_partner.street:
+            missing.append("Street Address")
+        if not company_partner.city:
+            missing.append("City")
+        if not company_partner.state_id:
+            missing.append("State")
+        if not company_partner.zip:
+            missing.append("ZIP")
+        if not company_partner.country_id:
+            missing.append("Country")
+
+        if missing:
+            raise UserError(
+                "Your company '%s' is missing required fields for AMACheck: %s\n\n"
+                "Go to Settings → Companies → %s and complete the address."
+                % (
+                    company_partner.name or "(no name)",
+                    ", ".join(missing),
+                    company_partner.name or "(no name)",
+                )
+            )
+
     def _amacheck_validate_partner(self, partner):
         missing = []
 
@@ -334,6 +364,7 @@ class AccountPayment(models.Model):
                 continue
 
             try:
+                payment._amacheck_validate_company()
                 payment._amacheck_validate_partner(payment.partner_id)
 
                 bank_journal = payment._amacheck_get_bank_journal()
