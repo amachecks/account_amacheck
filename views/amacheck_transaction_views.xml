@@ -13,7 +13,7 @@
                         <field name="bank"          string="Bank"             optional="show"/>
                         <field name="bank_account"  string="Account"          optional="show"/>
                         <field name="amount"        string="Amount"           optional="show" widget="monetary"/>
-                        <field name="checkeeper_id" string="Checkeeper ID"    optional="hide"/>
+                        <field name="checkeeper_id" string="Check ID"         optional="hide"/>
                         <button name="action_check_status" type="object"
                                 string="Check Status" icon="fa-search"
                                 invisible="checkeeper_id == ''"
@@ -38,7 +38,7 @@
                     <group>
                         <group string="Check">
                             <field name="check_no"      string="Check Number"/>
-                            <field name="checkeeper_id" string="Checkeeper ID"/>
+                            <field name="checkeeper_id" string="Check ID"/>
                         </group>
                         <group string="Status">
                             <field name="status"        string="Status"/>
