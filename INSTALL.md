@@ -13,13 +13,14 @@
 **Option A: Git clone (recommended)**
 ```bash
 cd /opt/odoo/addons
-git clone https://github.com/amachecks/account_amacheck.git account_amacheck
+git clone -b 18.0 https://github.com/amachecks/account_amacheck.git account_amacheck
 ```
 
 **Option B: Download ZIP**
 1. Go to https://github.com/amachecks/account_amacheck
-2. Click **Code → Download ZIP**
-3. Extract the folder to your Odoo addons directory and rename it `account_amacheck`
+2. Switch to the **18.0** branch using the branch dropdown
+3. Click **Code → Download ZIP**
+4. Extract the folder to your Odoo addons directory and rename it `account_amacheck`
 
 ---
 
@@ -91,7 +92,7 @@ sudo systemctl restart odoo
 
 ```bash
 cd /opt/odoo/addons/account_amacheck
-git pull origin main
+git pull origin 18.0
 sudo systemctl restart odoo
 ```
 
