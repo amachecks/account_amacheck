@@ -16,7 +16,7 @@
                         <field name="checkeeper_id" string="Checkeeper ID"    optional="hide"/>
                         <button name="action_check_status" type="object"
                                 string="Check Status" icon="fa-search"
-                                attrs="{'invisible': [('checkeeper_id', '=', '')]}"
+                                invisible="checkeeper_id == ''"
                                 class="btn-sm btn-secondary"/>
                     </list>
                 </field>
@@ -45,7 +45,7 @@
                             <field name="updated_at"    string="Last Updated"/>
                         </group>
                     </group>
-                    <group string="Delivery" attrs="{'invisible': [('tracking_no', '=', ''), ('carrier', '=', ''), ('est_delivery', '=', '')]}">
+                    <group string="Delivery" invisible="tracking_no == '' and carrier == '' and est_delivery == ''">
                         <field name="tracking_no"   string="Tracking Number"/>
                         <field name="carrier"       string="Carrier"/>
                         <field name="est_delivery"  string="Estimated Delivery"/>
