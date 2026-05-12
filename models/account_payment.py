@@ -219,7 +219,7 @@ class AccountPayment(models.Model):
                     "amount": int(round(self.amount * 100)),
                     "number": journal.amacheck_next_check_no,
                     "date":   fields.Date.today().strftime("%Y-%m-%d"),
-                    "memo":   self.name or "Odoo Payment",
+                    "memo":   self.memo or self.ref or self.name or "",
                     "from_address": {
                         "name":  company_partner.name,
                         "line1": company_partner.street or "",
