@@ -593,12 +593,16 @@ run_odoo_oneshot() {
 
         docker stop "$I_NAME" >/dev/null
 
+        # Always prepend "odoo" so the Odoo image's entrypoint enters its
+        # `odoo)` case (which applies HOST/PORT env vars and execs odoo).
+        # Without this, args starting with a bare subcommand like `shell`
+        # cause the entrypoint to try to exec `shell` directly and fail.
         local rc=0
         if [ -n "$stdin_data" ]; then
-            echo "$stdin_data" | docker run --rm -i --volumes-from "$I_NAME" "${env_args[@]}" "${net_args[@]}" "$image" "$@" 2>&1 | tail -25
+            echo "$stdin_data" | docker run --rm -i --volumes-from "$I_NAME" "${env_args[@]}" "${net_args[@]}" "$image" odoo "$@" 2>&1 | tail -25
             rc=${PIPESTATUS[1]}
         else
-            docker run --rm --volumes-from "$I_NAME" "${env_args[@]}" "${net_args[@]}" "$image" "$@" 2>&1 | tail -25
+            docker run --rm --volumes-from "$I_NAME" "${env_args[@]}" "${net_args[@]}" "$image" odoo "$@" 2>&1 | tail -25
             rc=${PIPESTATUS[0]}
         fi
 
