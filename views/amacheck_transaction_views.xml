@@ -5,7 +5,7 @@
         <field name="model">amacheck.transaction.wizard</field>
         <field name="arch" type="xml">
             <form string="AMACheck Transaction Log">
-                <field name="line_ids">
+                <field name="line_ids" readonly="0">
                     <list string="Transactions" decoration-danger="result != '' and result != 'OK'" no_open="1">
                         <field name="trans_date"    string="Transaction Date" optional="show"/>
                         <field name="check_no"      string="Check Number"     optional="show"/>
