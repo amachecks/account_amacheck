@@ -16,8 +16,8 @@
                         <field name="checkeeper_id" string="Check ID"         optional="hide"/>
                         <field name="check_status"  string="Status"           optional="hide"/>
                         <button name="action_view_detail" type="object"
-                                string="" icon="fa-info-circle"
-                                class="btn-sm btn-link"/>
+                                string="Details"
+                                class="btn-sm btn-secondary"/>
                     </list>
                 </field>
                 <footer>
@@ -47,10 +47,10 @@
                             <field name="bank_account" string="Account"/>
                         </group>
                     </group>
-                    <group string="Check Status" invisible="checkeeper_id == ''">
-                        <field name="checkeeper_id" string="Check ID"/>
+                    <group string="Check Status">
                         <field name="check_status"  string="Status"/>
                         <field name="status_date"   string="Last Updated"/>
+                        <field name="checkeeper_id" string="Check ID"/>
                     </group>
                     <group string="Result">
                         <field name="result" string="" nolabel="1" widget="text" readonly="1"/>
