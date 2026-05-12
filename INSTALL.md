@@ -25,6 +25,8 @@ The installer script does everything for you: detects your Odoo setup (Docker or
 
 **Options:**
 ```bash
+sudo bash install.sh --update             # pull the latest code and upgrade the module
+sudo bash install.sh --uninstall          # remove AMACheck from the database
 sudo bash install.sh --instance odoo1     # skip the instance picker
 sudo bash install.sh --branch 19.0        # force a specific Odoo version branch
 sudo bash install.sh --no-install         # set up files only; you'll click Install in the UI
@@ -111,11 +113,13 @@ sudo systemctl restart odoo
 
 ## Updating the Addon
 
-**With the installer** — just re-run it; it detects the existing checkout and pulls the latest:
+**With the installer:**
 
 ```bash
-sudo bash install.sh
+sudo bash install.sh --update
 ```
+
+This pulls the latest code on the branch you're already on (18.0 or 19.0), stops Odoo, runs the module upgrade, and starts Odoo back up — no manual clicks needed.
 
 **Manually:**
 
@@ -127,6 +131,33 @@ sudo systemctl restart odoo
 
 Then in Odoo:
 - Go to **Apps → AMACheck → Upgrade**
+
+---
+
+## Uninstalling the Addon
+
+**With the installer:**
+
+```bash
+sudo bash install.sh --uninstall
+```
+
+This stops Odoo, runs the module's uninstall hook (removes all AMACheck transaction records and configuration from the database), restarts Odoo, and asks whether to also delete the addon files from disk.
+
+To skip the prompt, add one of:
+
+```bash
+sudo bash install.sh --uninstall --remove-files   # also delete the addon folder
+sudo bash install.sh --uninstall --keep-files     # leave the addon folder on disk
+```
+
+**Manually:**
+
+1. In Odoo, go to **Apps**, find **AMACheck**, click the ⋮ menu → **Uninstall**.
+2. (Optional) Delete the addon folder: `rm -rf /opt/odoo/addons/account_amacheck`
+3. Restart Odoo: `sudo systemctl restart odoo`
+
+> **Warning:** Uninstalling deletes every AMACheck transaction record and configuration field from the database. Export your transaction log first if you want to keep a copy.
 
 ---
 
