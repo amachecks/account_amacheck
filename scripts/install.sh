@@ -452,7 +452,15 @@ download_code() {
 
     if [ -d "$target/.git" ]; then
         info "Existing git checkout found — switching to branch $BRANCH and updating..."
-        (cd "$target" && git fetch --quiet origin "$BRANCH" && git checkout --quiet "$BRANCH" && git pull --quiet --ff-only origin "$BRANCH")
+        # Force origin to the public REPO_URL so we don't prompt for credentials on
+        # a checkout that happens to point at a private fork.
+        (
+            cd "$target"
+            git remote set-url origin "$REPO_URL"
+            GIT_TERMINAL_PROMPT=0 git fetch --quiet origin "$BRANCH"
+            git checkout --quiet "$BRANCH"
+            GIT_TERMINAL_PROMPT=0 git pull --quiet --ff-only origin "$BRANCH"
+        )
         ok "Updated $target to branch $BRANCH"
     elif [ -d "$target" ]; then
         # Non-git folder exists — back it up
