@@ -51,6 +51,7 @@ class AMACheckTransactionLine(models.TransientModel):
 
         for line in self:
             checkeeper_id = line.checkeeper_id
+            _logger.info("AMACheck _compute_check_status: check_no=%r checkeeper_id=%r", line.check_no, checkeeper_id)
 
             # Fallback: look up via payment record if not pre-populated
             if not checkeeper_id and line.check_no:
@@ -58,18 +59,22 @@ class AMACheckTransactionLine(models.TransientModel):
                     ("amacheck_check_number", "=", line.check_no),
                     ("amacheck_zil_id", "!=", False),
                 ], limit=1)
+                _logger.info("AMACheck _compute_check_status: payment fallback found=%s", bool(payment))
                 if payment:
                     checkeeper_id = payment.amacheck_zil_id
+                    _logger.info("AMACheck _compute_check_status: fallback checkeeper_id=%r", checkeeper_id)
 
             if checkeeper_id:
                 try:
                     result     = amacheck_get_check_status(checkeeper_id, license_code, license_api_key)
                     raw_status = result.get("status", "unknown")
                     line.check_status = _STATUS_LABELS.get(raw_status, raw_status.replace("_", " ").title())
+                    _logger.info("AMACheck _compute_check_status: status=%r", line.check_status)
                 except Exception as e:
                     _logger.warning("AMACheck status fetch failed for %s: %s", checkeeper_id, e)
-                    line.check_status = ""
+                    line.check_status = "Unavailable"
             else:
+                _logger.info("AMACheck _compute_check_status: no checkeeper_id found — status blank")
                 line.check_status = ""
 
 

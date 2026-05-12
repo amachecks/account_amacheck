@@ -6,7 +6,7 @@
         <field name="arch" type="xml">
             <form string="AMACheck Transaction Log">
                 <field name="line_ids" readonly="0">
-                    <list string="Transactions" decoration-danger="result != '' and result != 'OK'">
+                    <list string="Transactions" decoration-danger="result != '' and result != 'OK'" delete="0" create="0" edit="0">
                         <field name="trans_date"    string="Transaction Date" optional="show"/>
                         <field name="check_no"      string="Check Number"     optional="show"/>
                         <field name="payee"         string="Payee"            optional="show"/>
@@ -29,27 +29,27 @@
         <field name="name">amacheck.transaction.line.form</field>
         <field name="model">amacheck.transaction.line</field>
         <field name="arch" type="xml">
-            <form string="Transaction Detail">
+            <form string="Transaction Detail" create="false" edit="false" delete="false">
                 <sheet>
                     <group>
                         <group string="Check">
-                            <field name="check_no"     string="Check Number"/>
-                            <field name="trans_date"   string="Transaction Date"/>
-                            <field name="amount"       string="Amount" widget="monetary"/>
+                            <field name="check_no"     string="Check Number"      readonly="1"/>
+                            <field name="trans_date"   string="Transaction Date"  readonly="1"/>
+                            <field name="amount"       string="Amount" widget="monetary" readonly="1"/>
                         </group>
                         <group string="Payee">
-                            <field name="payee"        string="Payee"/>
-                            <field name="bank"         string="Bank"/>
-                            <field name="bank_account" string="Account"/>
+                            <field name="payee"        string="Payee"   readonly="1"/>
+                            <field name="bank"         string="Bank"    readonly="1"/>
+                            <field name="bank_account" string="Account" readonly="1"/>
                         </group>
                     </group>
                     <group string="Check Status">
-                        <field name="check_status" string="Status"/>
+                        <field name="check_status" string="Status" readonly="1"/>
                     </group>
                     <group string="Result">
                         <field name="result" string="" nolabel="1" widget="text" readonly="1"/>
                     </group>
-                    <field name="wizard_id"    invisible="1"/>
+                    <field name="wizard_id"     invisible="1"/>
                     <field name="checkeeper_id" invisible="1"/>
                 </sheet>
             </form>
