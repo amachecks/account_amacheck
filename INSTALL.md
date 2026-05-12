@@ -2,29 +2,54 @@
 
 ## Requirements
 
-- Odoo 18.0
+- Odoo 18.0 or 19.0
 - The `account` and `mail` modules (standard Odoo — installed by default)
 - An active AMAChecks license code (purchase at amachecks.com)
 
 ---
 
-## Step 1 — Get the Code
+## Step 1 — Install the Addon
 
-**Option A: Git clone (recommended)**
+### Option A: Automated installer (recommended)
+
+The installer script does everything for you: detects your Odoo setup (Docker or systemd), detects your Odoo version, downloads the right branch, updates your config, and installs the module.
+
+1. Download `install.sh` from the [latest release](https://github.com/amachecks/account_amacheck/releases/latest).
+2. Run it on your Odoo server:
+
+   ```bash
+   sudo bash install.sh
+   ```
+
+3. Follow the prompts. The installer will ask you to confirm before making any changes.
+
+**Options:**
 ```bash
-cd /opt/odoo/addons
-git clone -b 18.0 https://github.com/amachecks/account_amacheck.git account_amacheck
+sudo bash install.sh --instance odoo1     # skip the instance picker
+sudo bash install.sh --branch 19.0        # force a specific Odoo version branch
+sudo bash install.sh --no-install         # set up files only; you'll click Install in the UI
+sudo bash install.sh --help               # show all options
 ```
 
-**Option B: Download ZIP**
-1. Go to https://github.com/amachecks/account_amacheck
-2. Switch to the **18.0** branch using the branch dropdown
-3. Click **Code → Download ZIP**
-4. Extract the folder to your Odoo addons directory and rename it `account_amacheck`
+When the installer finishes, skip ahead to **Step 2 — Configure AMACheck Settings**.
 
 ---
 
-## Step 2 — Add to Odoo Addons Path
+### Option B: Manual install
+
+If the automated installer doesn't fit your setup, follow these steps. Use the branch that matches your Odoo version — **`18.0`** for Odoo 18, **`19.0`** for Odoo 19.
+
+**1. Get the code**
+
+```bash
+cd /opt/odoo/addons
+git clone -b 18.0 https://github.com/amachecks/account_amacheck.git account_amacheck
+# (replace 18.0 with 19.0 if you're on Odoo 19)
+```
+
+Or download the ZIP from the [repo](https://github.com/amachecks/account_amacheck), switch to the matching branch, click **Code → Download ZIP**, then extract into your addons directory.
+
+**2. Add to Odoo addons path**
 
 Open your Odoo config file (usually `/etc/odoo/odoo.conf`) and confirm the addons directory is listed:
 
@@ -37,17 +62,13 @@ If you placed the addon in a different folder, add it:
 addons_path = /opt/odoo/addons,/path/to/your/folder
 ```
 
----
-
-## Step 3 — Restart Odoo
+**3. Restart Odoo**
 
 ```bash
 sudo systemctl restart odoo
 ```
 
----
-
-## Step 4 — Install the Module
+**4. Install the module**
 
 1. Log into Odoo as an Administrator
 2. Go to **Settings → Activate Developer Mode** (Settings → General Settings → scroll to bottom)
@@ -58,7 +79,7 @@ sudo systemctl restart odoo
 
 ---
 
-## Step 5 — Configure AMACheck Settings
+## Step 2 — Configure AMACheck Settings
 
 1. Go to **Settings → AMACheck**
 2. Enter your **License Code**
@@ -67,7 +88,7 @@ sudo systemctl restart odoo
 
 ---
 
-## Step 6 — Configure Your Bank Journal
+## Step 3 — Configure Your Bank Journal
 
 1. Go to **Accounting → Configuration → Journals**
 2. Open your bank journal (e.g. "Bank")
@@ -78,7 +99,7 @@ sudo systemctl restart odoo
 
 ---
 
-## Step 7 — Send Your First Check
+## Step 4 — Send Your First Check
 
 1. Go to **Accounting → Vendors → Payments**
 2. Create or open an outbound vendor payment
@@ -90,9 +111,17 @@ sudo systemctl restart odoo
 
 ## Updating the Addon
 
+**With the installer** — just re-run it; it detects the existing checkout and pulls the latest:
+
+```bash
+sudo bash install.sh
+```
+
+**Manually:**
+
 ```bash
 cd /opt/odoo/addons/account_amacheck
-git pull origin 18.0
+git pull
 sudo systemctl restart odoo
 ```
 
@@ -105,6 +134,8 @@ Then in Odoo:
 
 | Problem | Solution |
 |---|---|
+| Installer says "No Odoo installation detected" | The installer looks for Docker containers named `*odoo*-app` or `odoo*.service` units. If your setup is non-standard, use the manual steps in Option B. |
+| Installer can't detect your Odoo version | Pass `--branch 18.0` or `--branch 19.0` explicitly. |
 | "License Code is not configured" | Enter license code in Settings → AMACheck and save |
 | "Signer is not set" | Open the bank journal and fill in the Signer field |
 | "AMAChecks API key is not configured" | Click Refresh Balance in Settings → AMACheck |
