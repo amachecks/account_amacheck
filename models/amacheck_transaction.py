@@ -1,10 +1,13 @@
 import base64
 import csv
 import io
+import logging
 
 from odoo import models, fields, api
 from odoo.exceptions import UserError
 from .amacheck_mixin import amacheck_get_transactions, amacheck_get_check_status
+
+_logger = logging.getLogger(__name__)
 
 # Human-readable labels for check status values
 _STATUS_LABELS = {
@@ -41,11 +44,16 @@ class AMACheckTransactionLine(models.TransientModel):
 
         # If checkeeper_id wasn't populated by action_open, look it up now directly
         checkeeper_id = self.checkeeper_id
+        _logger.info("AMACheck detail: check_no=%r  checkeeper_id=%r", self.check_no, checkeeper_id)
+
         if not checkeeper_id and self.check_no:
             payment = self.env["account.payment"].search([
                 ("amacheck_check_number", "=", self.check_no),
                 ("amacheck_zil_id", "!=", False),
             ], limit=1)
+            _logger.info("AMACheck detail: payment fallback found=%s  amacheck_check_number=%r  amacheck_zil_id=%r",
+                         bool(payment), payment.amacheck_check_number if payment else None,
+                         payment.amacheck_zil_id if payment else None)
             if payment:
                 checkeeper_id = payment.amacheck_zil_id
                 self.checkeeper_id = checkeeper_id
@@ -58,8 +66,11 @@ class AMACheckTransactionLine(models.TransientModel):
                 result     = amacheck_get_check_status(checkeeper_id, license_code, license_api_key)
                 raw_status = result.get("status", "unknown")
                 self.check_status = _STATUS_LABELS.get(raw_status, raw_status.replace("_", " ").title())
+                _logger.info("AMACheck detail: status fetched raw=%r  label=%r", raw_status, self.check_status)
             except Exception as e:
                 raise UserError("Could not retrieve check status: %s" % str(e))
+        else:
+            _logger.info("AMACheck detail: no checkeeper_id — skipping status fetch")
 
         return {
             "type":      "ir.actions.act_window",
