@@ -1,7 +1,11 @@
+import logging
+
 from odoo import models, fields
 from odoo.exceptions import UserError
 from .amacheck_mixin import amacheck_get_credentials, amacheck_send_check, checkeeper_post, amacheck_log_transaction, AMACheckLicenseInactiveError
 import json
+
+_logger = logging.getLogger(__name__)
 
 _CHECKEEPER_URL = "https://api.checkeeper.com/v3/check"
 _PROVIDER_CHECKEEPER = 3
@@ -252,6 +256,7 @@ class AccountPayment(models.Model):
         acc_number   = bank_account.acc_number or ""
         check_no     = str(journal.amacheck_next_check_no)
 
+        _logger.info("AMACheck send: memo=%r ref=%r name=%r", self.memo, self.ref, self.name)
         payload          = self._amacheck_checkeeper_payload(journal, signer)
         status_code, result = checkeeper_post(_CHECKEEPER_URL, checkeeper_api_key, payload)
 
