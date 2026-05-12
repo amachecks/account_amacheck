@@ -128,7 +128,7 @@ class AMACheckTransactionWizard(models.TransientModel):
             "res_model": "amacheck.transaction.wizard",
             "res_id":    wizard.id,
             "view_mode": "form",
-            "target":    "new",
+            "target":    "current",
         }
 
     def action_export_csv(self):

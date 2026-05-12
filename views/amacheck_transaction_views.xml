@@ -22,7 +22,7 @@
                 </field>
                 <footer>
                     <button string="Export to CSV" name="action_export_csv" type="object" class="btn-primary"/>
-                    <button string="Close" class="btn-secondary" special="cancel"/>
+                    <button string="Back" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>
         </field>
