@@ -36,6 +36,17 @@ class AMACheckTransactionLine(models.TransientModel):
     check_status   = fields.Char(string="Status", readonly=True)
     status_date    = fields.Char(string="Last Updated", readonly=True)
 
+    def action_view_detail(self):
+        self.ensure_one()
+        return {
+            "type":      "ir.actions.act_window",
+            "name":      "Transaction Detail",
+            "res_model": "amacheck.transaction.line",
+            "res_id":    self.id,
+            "view_mode": "form",
+            "target":    "new",
+        }
+
 
 class AMACheckStatusPopup(models.TransientModel):
     _name = "amacheck.status.popup"
