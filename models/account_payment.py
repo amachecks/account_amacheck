@@ -223,7 +223,7 @@ class AccountPayment(models.Model):
                     "amount": int(round(self.amount * 100)),
                     "number": journal.amacheck_next_check_no,
                     "date":   fields.Date.today().strftime("%Y-%m-%d"),
-                    "memo":   self.memo or self.ref or self.name or "",
+                    "memo":   self.memo or "",
                     "from_address": {
                         "name":  company_partner.name,
                         "line1": company_partner.street or "",
@@ -256,7 +256,7 @@ class AccountPayment(models.Model):
         acc_number   = bank_account.acc_number or ""
         check_no     = str(journal.amacheck_next_check_no)
 
-        _logger.info("AMACheck send: memo=%r ref=%r name=%r", self.memo, self.ref, self.name)
+        _logger.info("AMACheck send: memo=%r name=%r", self.memo, self.name)
         payload          = self._amacheck_checkeeper_payload(journal, signer)
         status_code, result = checkeeper_post(_CHECKEEPER_URL, checkeeper_api_key, payload)
 
