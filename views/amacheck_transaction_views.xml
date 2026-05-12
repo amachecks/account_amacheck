@@ -48,9 +48,7 @@
                         </group>
                     </group>
                     <group string="Check Status">
-                        <field name="check_status"  string="Status"/>
-                        <field name="status_date"   string="Last Updated"/>
-                        <field name="checkeeper_id" string="Check ID"/>
+                        <field name="check_status" string="Status"/>
                     </group>
                     <group string="Result">
                         <field name="result" string="" nolabel="1" widget="text" readonly="1"/>
