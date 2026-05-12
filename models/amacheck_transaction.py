@@ -38,6 +38,19 @@ class AMACheckTransactionLine(models.TransientModel):
 
     def action_view_detail(self):
         self.ensure_one()
+
+        # Fetch fresh status whenever the detail is opened
+        if self.checkeeper_id:
+            params          = self.env["ir.config_parameter"].sudo()
+            license_code    = params.get_param("account_amacheck.license_code")
+            license_api_key = params.get_param("account_amacheck.license_api_key") or ""
+            try:
+                result     = amacheck_get_check_status(self.checkeeper_id, license_code, license_api_key)
+                raw_status = result.get("status", "")
+                self.check_status = _STATUS_LABELS.get(raw_status, raw_status.replace("_", " ").title())
+            except Exception:
+                self.check_status = "Unavailable"
+
         return {
             "type":      "ir.actions.act_window",
             "name":      "Transaction Detail",
@@ -86,7 +99,7 @@ class AMACheckTransactionWizard(models.TransientModel):
 
         lines = []
         for t in transactions:
-            check_no      = t.get("CheckNo") or ""
+            check_no      = str(t.get("CheckNo") or "")
             checkeeper_id = checkeeper_map.get(check_no, "")
             check_status  = ""
             status_date   = ""
