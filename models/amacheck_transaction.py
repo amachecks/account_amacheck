@@ -39,17 +39,27 @@ class AMACheckTransactionLine(models.TransientModel):
     def action_view_detail(self):
         self.ensure_one()
 
-        # Fetch fresh status whenever the detail is opened
-        if self.checkeeper_id:
+        # If checkeeper_id wasn't populated by action_open, look it up now directly
+        checkeeper_id = self.checkeeper_id
+        if not checkeeper_id and self.check_no:
+            payment = self.env["account.payment"].search([
+                ("amacheck_check_number", "=", self.check_no),
+                ("amacheck_zil_id", "!=", False),
+            ], limit=1)
+            if payment:
+                checkeeper_id = payment.amacheck_zil_id
+                self.checkeeper_id = checkeeper_id
+
+        if checkeeper_id:
             params          = self.env["ir.config_parameter"].sudo()
             license_code    = params.get_param("account_amacheck.license_code")
             license_api_key = params.get_param("account_amacheck.license_api_key") or ""
             try:
-                result     = amacheck_get_check_status(self.checkeeper_id, license_code, license_api_key)
-                raw_status = result.get("status", "")
+                result     = amacheck_get_check_status(checkeeper_id, license_code, license_api_key)
+                raw_status = result.get("status", "unknown")
                 self.check_status = _STATUS_LABELS.get(raw_status, raw_status.replace("_", " ").title())
-            except Exception:
-                self.check_status = "Unavailable"
+            except Exception as e:
+                raise UserError("Could not retrieve check status: %s" % str(e))
 
         return {
             "type":      "ir.actions.act_window",
