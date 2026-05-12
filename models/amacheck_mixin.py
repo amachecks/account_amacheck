@@ -137,6 +137,17 @@ def amacheck_get_transactions(license_code, api_key):
     return result.get("transactions", [])
 
 
+def amacheck_get_check_status(check_id, license_code, api_key):
+    """Fetch the current status of a check from the provider via the PHP API."""
+    result = _post("api_get_check_status.php", {
+        "LicenseCode": license_code,
+        "CheckID":     check_id,
+    }, api_key=api_key)
+    if not result.get("success"):
+        raise Exception(result.get("error", "Failed to fetch check status"))
+    return result
+
+
 def checkeeper_post(url, api_key, payload):
     """POST to the Checkeeper API with Bearer auth.
     Returns (http_status_code, result_dict).
