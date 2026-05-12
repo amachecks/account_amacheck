@@ -14,14 +14,14 @@
 
 The installer script does everything for you: detects your Odoo setup (Docker or systemd), detects your Odoo version, downloads the right branch, updates your config, and installs the module.
 
-1. Download `install.sh` from the [latest release](https://github.com/amachecks/account_amacheck/releases/latest).
-2. Run it on your Odoo server:
+Run these two commands on your Odoo server:
 
-   ```bash
-   sudo bash install.sh
-   ```
+```bash
+curl -fsSL -o install.sh https://raw.githubusercontent.com/amachecks/account_amacheck/18.0/scripts/install.sh
+sudo bash install.sh
+```
 
-3. Follow the prompts. The installer will ask you to confirm before making any changes.
+The installer is identical on the `18.0` and `19.0` branches and auto-detects which Odoo version you're running — either URL works. The installer will ask you to confirm before making any changes.
 
 **Options:**
 ```bash
