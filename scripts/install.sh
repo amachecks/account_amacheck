@@ -568,18 +568,29 @@ run_odoo_oneshot() {
     local desc="$1"; local stdin_data="$2"; shift 2
 
     if [ "$I_TYPE" = "docker" ]; then
-        docker stop "$I_NAME" >/dev/null
         local image; image="$(docker inspect "$I_NAME" --format '{{.Config.Image}}')"
         local network; network="$(docker inspect "$I_NAME" --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' | head -1)"
-        local net_args=""
-        [ -n "$network" ] && net_args="--network=$network"
+
+        # Copy env vars from the source container — Odoo images use HOST/PORT/USER/PASSWORD
+        # env vars to reach the DB. Without these the one-shot container falls back to
+        # the image defaults (HOST=db) and can't resolve the real DB hostname.
+        local -a env_args=()
+        local env_line
+        while IFS= read -r env_line; do
+            [ -n "$env_line" ] && env_args+=("-e" "$env_line")
+        done < <(docker inspect "$I_NAME" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null || true)
+
+        local -a net_args=()
+        [ -n "$network" ] && net_args=("--network=$network")
+
+        docker stop "$I_NAME" >/dev/null
 
         local rc=0
         if [ -n "$stdin_data" ]; then
-            echo "$stdin_data" | docker run --rm -i --volumes-from "$I_NAME" $net_args "$image" "$@" 2>&1 | tail -25
+            echo "$stdin_data" | docker run --rm -i --volumes-from "$I_NAME" "${env_args[@]}" "${net_args[@]}" "$image" "$@" 2>&1 | tail -25
             rc=${PIPESTATUS[1]}
         else
-            docker run --rm --volumes-from "$I_NAME" $net_args "$image" "$@" 2>&1 | tail -25
+            docker run --rm --volumes-from "$I_NAME" "${env_args[@]}" "${net_args[@]}" "$image" "$@" 2>&1 | tail -25
             rc=${PIPESTATUS[0]}
         fi
 
