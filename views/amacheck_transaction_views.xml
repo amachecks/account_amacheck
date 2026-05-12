@@ -6,7 +6,7 @@
         <field name="arch" type="xml">
             <form string="AMACheck Transaction Log">
                 <field name="line_ids" readonly="0">
-                    <list string="Transactions" decoration-danger="result != '' and result != 'OK'" no_open="1">
+                    <list string="Transactions" decoration-danger="result != '' and result != 'OK'">
                         <field name="trans_date"    string="Transaction Date" optional="show"/>
                         <field name="check_no"      string="Check Number"     optional="show"/>
                         <field name="payee"         string="Payee"            optional="show"/>
@@ -14,10 +14,6 @@
                         <field name="bank_account"  string="Account"          optional="show"/>
                         <field name="amount"        string="Amount"           optional="show" widget="monetary"/>
                         <field name="checkeeper_id" string="Check ID"         optional="hide"/>
-                        <field name="check_status"  string="Status"           optional="hide"/>
-                        <button name="action_view_detail" type="object"
-                                string="Details"
-                                class="btn-sm btn-secondary"/>
                     </list>
                 </field>
                 <footer>
@@ -53,11 +49,9 @@
                     <group string="Result">
                         <field name="result" string="" nolabel="1" widget="text" readonly="1"/>
                     </group>
-                    <field name="wizard_id" invisible="1"/>
+                    <field name="wizard_id"    invisible="1"/>
+                    <field name="checkeeper_id" invisible="1"/>
                 </sheet>
-                <footer>
-                    <button string="Close" class="btn-secondary" special="cancel"/>
-                </footer>
             </form>
         </field>
     </record>

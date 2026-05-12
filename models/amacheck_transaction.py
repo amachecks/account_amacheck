@@ -36,50 +36,41 @@ class AMACheckTransactionLine(models.TransientModel):
     amount         = fields.Float(string="Amount", digits=(16, 2), readonly=True)
     result         = fields.Text(string="Result", readonly=True)
     checkeeper_id  = fields.Char(string="Check ID", readonly=True)
-    check_status   = fields.Char(string="Status", readonly=True)
-    status_date    = fields.Char(string="Last Updated", readonly=True)
 
-    def action_view_detail(self):
-        self.ensure_one()
+    # Computed on demand — only fetches when the detail form is opened (not in list)
+    check_status = fields.Char(
+        string="Status",
+        compute="_compute_check_status",
+        store=False,
+    )
 
-        # If checkeeper_id wasn't populated by action_open, look it up now directly
-        checkeeper_id = self.checkeeper_id
-        _logger.info("AMACheck detail: check_no=%r  checkeeper_id=%r", self.check_no, checkeeper_id)
+    def _compute_check_status(self):
+        params          = self.env["ir.config_parameter"].sudo()
+        license_code    = params.get_param("account_amacheck.license_code")
+        license_api_key = params.get_param("account_amacheck.license_api_key") or ""
 
-        if not checkeeper_id and self.check_no:
-            payment = self.env["account.payment"].search([
-                ("amacheck_check_number", "=", self.check_no),
-                ("amacheck_zil_id", "!=", False),
-            ], limit=1)
-            _logger.info("AMACheck detail: payment fallback found=%s  amacheck_check_number=%r  amacheck_zil_id=%r",
-                         bool(payment), payment.amacheck_check_number if payment else None,
-                         payment.amacheck_zil_id if payment else None)
-            if payment:
-                checkeeper_id = payment.amacheck_zil_id
-                self.checkeeper_id = checkeeper_id
+        for line in self:
+            checkeeper_id = line.checkeeper_id
 
-        if checkeeper_id:
-            params          = self.env["ir.config_parameter"].sudo()
-            license_code    = params.get_param("account_amacheck.license_code")
-            license_api_key = params.get_param("account_amacheck.license_api_key") or ""
-            try:
-                result     = amacheck_get_check_status(checkeeper_id, license_code, license_api_key)
-                raw_status = result.get("status", "unknown")
-                self.check_status = _STATUS_LABELS.get(raw_status, raw_status.replace("_", " ").title())
-                _logger.info("AMACheck detail: status fetched raw=%r  label=%r", raw_status, self.check_status)
-            except Exception as e:
-                raise UserError("Could not retrieve check status: %s" % str(e))
-        else:
-            _logger.info("AMACheck detail: no checkeeper_id — skipping status fetch")
+            # Fallback: look up via payment record if not pre-populated
+            if not checkeeper_id and line.check_no:
+                payment = self.env["account.payment"].search([
+                    ("amacheck_check_number", "=", line.check_no),
+                    ("amacheck_zil_id", "!=", False),
+                ], limit=1)
+                if payment:
+                    checkeeper_id = payment.amacheck_zil_id
 
-        return {
-            "type":      "ir.actions.act_window",
-            "name":      "Transaction Detail",
-            "res_model": "amacheck.transaction.line",
-            "res_id":    self.id,
-            "view_mode": "form",
-            "target":    "new",
-        }
+            if checkeeper_id:
+                try:
+                    result     = amacheck_get_check_status(checkeeper_id, license_code, license_api_key)
+                    raw_status = result.get("status", "unknown")
+                    line.check_status = _STATUS_LABELS.get(raw_status, raw_status.replace("_", " ").title())
+                except Exception as e:
+                    _logger.warning("AMACheck status fetch failed for %s: %s", checkeeper_id, e)
+                    line.check_status = ""
+            else:
+                line.check_status = ""
 
 
 class AMACheckStatusPopup(models.TransientModel):
@@ -120,27 +111,7 @@ class AMACheckTransactionWizard(models.TransientModel):
 
         lines = []
         for t in transactions:
-            check_no      = str(t.get("CheckNo") or "")
-            checkeeper_id = checkeeper_map.get(check_no, "")
-            check_status  = ""
-            status_date   = ""
-
-            if checkeeper_id:
-                try:
-                    status_result = amacheck_get_check_status(checkeeper_id, license_code, license_api_key)
-                    raw_status    = status_result.get("status", "")
-                    check_status  = _STATUS_LABELS.get(raw_status, raw_status.replace("_", " ").title())
-                    data          = status_result.get("data") or {}
-                    status_date   = (
-                        data.get("mailed")
-                        or data.get("printed")
-                        or data.get("updated_at")
-                        or data.get("created")
-                        or ""
-                    )
-                except Exception:
-                    check_status = "Unavailable"
-
+            check_no = str(t.get("CheckNo") or "")
             lines.append((0, 0, {
                 "trans_date":    t.get("TransDate") or False,
                 "check_no":      check_no,
@@ -149,9 +120,7 @@ class AMACheckTransactionWizard(models.TransientModel):
                 "bank_account":  t.get("BankAccount") or "",
                 "amount":        float(t.get("Amount") or 0),
                 "result":        t.get("Result") or "",
-                "checkeeper_id": checkeeper_id,
-                "check_status":  check_status,
-                "status_date":   status_date,
+                "checkeeper_id": checkeeper_map.get(check_no, ""),
             }))
 
         wizard = self.create({"line_ids": lines})
