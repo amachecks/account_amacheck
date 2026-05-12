@@ -152,6 +152,32 @@ class AccountPayment(models.Model):
             % (journal.amacheck_sync_message or "Unknown error")
         )
 
+    def _amacheck_address_lines(self, partner):
+        """Build a Checkeeper payer/payee address dict from an Odoo partner.
+
+        line1 = Name
+        line2 = Street 1
+        line3 = Street 2  (if present), otherwise City, State ZIP
+        line4 = City, State ZIP  (only when Street 2 is present)
+        """
+        state   = partner.state_id.code or partner.state_id.name or ""
+        csz     = ", ".join(filter(None, [partner.city, state]))
+        if partner.zip:
+            csz = (csz + " " + partner.zip).strip() if csz else partner.zip
+
+        if partner.street2:
+            return {
+                "line1": partner.name or "",
+                "line2": partner.street or "",
+                "line3": partner.street2,
+                "line4": csz,
+            }
+        return {
+            "line1": partner.name or "",
+            "line2": partner.street or "",
+            "line3": csz,
+        }
+
     def _amacheck_checkeeper_payload(self, journal, signer):
         partner         = self.partner_id
         company_partner = self.company_id.partner_id
@@ -187,16 +213,8 @@ class AccountPayment(models.Model):
                         "routing": bank.bic or "",
                         "account": bank_account.acc_number or "",
                     },
-                    "payer": {
-                        "line1": company_partner.name,
-                        "line2": " ".join(filter(None, [company_partner.street, company_partner.street2])) or "",
-                        "line3": ", ".join(filter(None, [company_partner.city, company_partner.state_id.code or company_partner.state_id.name])) + (" " + company_partner.zip if company_partner.zip else "") if company_partner.city else (company_partner.zip or ""),
-                    },
-                    "payee": {
-                        "line1": partner.name,
-                        "line2": " ".join(filter(None, [partner.street, partner.street2])) or "",
-                        "line3": ", ".join(filter(None, [partner.city, partner.state_id.code or partner.state_id.name])) + (" " + partner.zip if partner.zip else "") if partner.city else (partner.zip or ""),
-                    },
+                    "payer": self._amacheck_address_lines(company_partner),
+                    "payee": self._amacheck_address_lines(partner),
                     "signer": {"type": "text", "value": signer},
                     "amount": int(round(self.amount * 100)),
                     "number": journal.amacheck_next_check_no,
