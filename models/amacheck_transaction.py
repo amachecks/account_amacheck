@@ -1,6 +1,7 @@
 import base64
 import csv
 import io
+import json
 import logging
 
 from odoo import models, fields, api
@@ -53,7 +54,18 @@ class AMACheckTransactionLine(models.TransientModel):
             checkeeper_id = line.checkeeper_id
             _logger.info("AMACheck _compute_check_status: check_no=%r checkeeper_id=%r", line.check_no, checkeeper_id)
 
-            # Fallback: look up via payment record if not pre-populated
+            # Fallback: parse checkeeper_id out of the Result JSON (data.checks[0].id)
+            if not checkeeper_id and line.result:
+                try:
+                    result_data = json.loads(line.result)
+                    checks = (result_data.get("data") or {}).get("checks") or []
+                    if checks:
+                        checkeeper_id = str(checks[0].get("id") or "")
+                        _logger.info("AMACheck _compute_check_status: parsed checkeeper_id from result=%r", checkeeper_id)
+                except Exception:
+                    pass
+
+            # Secondary fallback: look up via payment record
             if not checkeeper_id and line.check_no:
                 payment = self.env["account.payment"].search([
                     ("amacheck_check_number", "=", line.check_no),
@@ -116,7 +128,21 @@ class AMACheckTransactionWizard(models.TransientModel):
 
         lines = []
         for t in transactions:
-            check_no = str(t.get("CheckNo") or "")
+            check_no   = str(t.get("CheckNo") or "")
+            result_str = t.get("Result") or ""
+
+            # Try to get checkeeper_id from the payment map first,
+            # then fall back to parsing it out of the Result JSON
+            checkeeper_id = checkeeper_map.get(check_no, "")
+            if not checkeeper_id and result_str:
+                try:
+                    result_data = json.loads(result_str)
+                    checks = (result_data.get("data") or {}).get("checks") or []
+                    if checks:
+                        checkeeper_id = str(checks[0].get("id") or "")
+                except Exception:
+                    pass
+
             lines.append((0, 0, {
                 "trans_date":    t.get("TransDate") or False,
                 "check_no":      check_no,
@@ -124,8 +150,8 @@ class AMACheckTransactionWizard(models.TransientModel):
                 "bank":          t.get("Bank") or "",
                 "bank_account":  t.get("BankAccount") or "",
                 "amount":        float(t.get("Amount") or 0),
-                "result":        t.get("Result") or "",
-                "checkeeper_id": checkeeper_map.get(check_no, ""),
+                "result":        result_str,
+                "checkeeper_id": checkeeper_id,
             }))
 
         wizard = self.create({"line_ids": lines})
