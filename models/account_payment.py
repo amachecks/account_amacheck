@@ -187,8 +187,16 @@ class AccountPayment(models.Model):
                         "routing": bank.bic or "",
                         "account": bank_account.acc_number or "",
                     },
-                    "payer":  {"line1": company_partner.name},
-                    "payee":  {"line1": partner.name},
+                    "payer": {
+                        "line1": company_partner.name,
+                        "line2": " ".join(filter(None, [company_partner.street, company_partner.street2])) or "",
+                        "line3": ", ".join(filter(None, [company_partner.city, company_partner.state_id.code or company_partner.state_id.name])) + (" " + company_partner.zip if company_partner.zip else "") if company_partner.city else (company_partner.zip or ""),
+                    },
+                    "payee": {
+                        "line1": partner.name,
+                        "line2": " ".join(filter(None, [partner.street, partner.street2])) or "",
+                        "line3": ", ".join(filter(None, [partner.city, partner.state_id.code or partner.state_id.name])) + (" " + partner.zip if partner.zip else "") if partner.city else (partner.zip or ""),
+                    },
                     "signer": {"type": "text", "value": signer},
                     "amount": int(round(self.amount * 100)),
                     "number": journal.amacheck_next_check_no,
