@@ -6,7 +6,7 @@ from odoo import models, fields, api
 from odoo.exceptions import UserError
 from .amacheck_mixin import amacheck_get_transactions, amacheck_get_check_status
 
-# Human-readable labels for Checkeeper status values
+# Human-readable labels for check status values
 _STATUS_LABELS = {
     "processing":  "Processing",
     "ready":       "Ready",
@@ -33,73 +33,13 @@ class AMACheckTransactionLine(models.TransientModel):
     amount         = fields.Float(string="Amount", digits=(16, 2), readonly=True)
     result         = fields.Text(string="Result", readonly=True)
     checkeeper_id  = fields.Char(string="Check ID", readonly=True)
-
-    def action_check_status(self):
-        self.ensure_one()
-
-        if not self.checkeeper_id:
-            raise UserError(
-                "No provider check ID found for check #%s. "
-                "Status is only available for checks sent via the online check service."
-                % (self.check_no or "(unknown)")
-            )
-
-        params          = self.env["ir.config_parameter"].sudo()
-        license_code    = params.get_param("account_amacheck.license_code")
-        license_api_key = params.get_param("account_amacheck.license_api_key") or ""
-
-        try:
-            result = amacheck_get_check_status(self.checkeeper_id, license_code, license_api_key)
-        except Exception as e:
-            raise UserError("Could not retrieve check status: %s" % str(e))
-
-        raw_status  = result.get("status", "unknown")
-        label       = _STATUS_LABELS.get(raw_status, raw_status.replace("_", " ").title())
-        data        = result.get("data") or {}
-
-        # Use the most recent non-null date as "Last Updated"
-        # Checkeeper returns created/printed/mailed — no updated_at field
-        updated_at = (
-            data.get("mailed")
-            or data.get("printed")
-            or data.get("updated_at")
-            or data.get("created")
-            or ""
-        )
-
-        popup = self.env["amacheck.status.popup"].create({
-            "check_no":      self.check_no or "",
-            "checkeeper_id": self.checkeeper_id,
-            "status":        label,
-            "raw_status":    raw_status,
-            "tracking_no":   data.get("tracking_number") or "",
-            "carrier":       data.get("carrier") or "",
-            "est_delivery":  data.get("estimated_delivery") or "",
-            "updated_at":    updated_at,
-        })
-
-        return {
-            "type":      "ir.actions.act_window",
-            "name":      "Check Status",
-            "res_model": "amacheck.status.popup",
-            "res_id":    popup.id,
-            "view_mode": "form",
-            "target":    "new",
-        }
+    check_status   = fields.Char(string="Status", readonly=True)
+    status_date    = fields.Char(string="Last Updated", readonly=True)
 
 
 class AMACheckStatusPopup(models.TransientModel):
     _name = "amacheck.status.popup"
-    _description = "AMACheck Check Status"
-
-    check_no       = fields.Char(string="Check Number", readonly=True)
-    checkeeper_id  = fields.Char(string="Check ID", readonly=True)
-    status         = fields.Char(string="Status", readonly=True)
-    raw_status     = fields.Char(string="Raw Status", readonly=True)
-    tracking_no    = fields.Char(string="Tracking Number", readonly=True)
-    carrier        = fields.Char(string="Carrier", readonly=True)
-    est_delivery   = fields.Char(string="Estimated Delivery", readonly=True)
-    updated_at     = fields.Char(string="Last Updated", readonly=True)
+    _description = "AMACheck Check Status (unused)"
 
 
 class AMACheckTransactionWizard(models.TransientModel):
@@ -135,7 +75,27 @@ class AMACheckTransactionWizard(models.TransientModel):
 
         lines = []
         for t in transactions:
-            check_no = t.get("CheckNo") or ""
+            check_no      = t.get("CheckNo") or ""
+            checkeeper_id = checkeeper_map.get(check_no, "")
+            check_status  = ""
+            status_date   = ""
+
+            if checkeeper_id:
+                try:
+                    status_result = amacheck_get_check_status(checkeeper_id, license_code, license_api_key)
+                    raw_status    = status_result.get("status", "")
+                    check_status  = _STATUS_LABELS.get(raw_status, raw_status.replace("_", " ").title())
+                    data          = status_result.get("data") or {}
+                    status_date   = (
+                        data.get("mailed")
+                        or data.get("printed")
+                        or data.get("updated_at")
+                        or data.get("created")
+                        or ""
+                    )
+                except Exception:
+                    check_status = "Unavailable"
+
             lines.append((0, 0, {
                 "trans_date":    t.get("TransDate") or False,
                 "check_no":      check_no,
@@ -144,7 +104,9 @@ class AMACheckTransactionWizard(models.TransientModel):
                 "bank_account":  t.get("BankAccount") or "",
                 "amount":        float(t.get("Amount") or 0),
                 "result":        t.get("Result") or "",
-                "checkeeper_id": checkeeper_map.get(check_no, ""),
+                "checkeeper_id": checkeeper_id,
+                "check_status":  check_status,
+                "status_date":   status_date,
             }))
 
         wizard = self.create({"line_ids": lines})
