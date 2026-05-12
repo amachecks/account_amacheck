@@ -193,8 +193,9 @@ discover_docker_instances() {
 
         local conf_content; conf_content="$(docker exec "$container" cat "$in_container_conf" 2>/dev/null || true)"
         local db_name addons_paths
-        db_name="$(echo "$conf_content" | grep -E '^[[:space:]]*db_name[[:space:]]*=' | head -1 | sed 's/^[^=]*=[[:space:]]*//' | tr -d '\r')"
-        addons_paths="$(echo "$conf_content" | grep -E '^[[:space:]]*addons_path[[:space:]]*=' | head -1 | sed 's/^[^=]*=[[:space:]]*//' | tr -d '\r')"
+        # grep may exit non-zero when the line isn't in the config; tolerate that under pipefail.
+        db_name="$( { echo "$conf_content" | grep -E '^[[:space:]]*db_name[[:space:]]*=' || true; } | head -1 | sed 's/^[^=]*=[[:space:]]*//' | tr -d '\r')"
+        addons_paths="$( { echo "$conf_content" | grep -E '^[[:space:]]*addons_path[[:space:]]*=' || true; } | head -1 | sed 's/^[^=]*=[[:space:]]*//' | tr -d '\r')"
 
         # Figure out which addons path is mapped to a host volume — that's where we install
         local container_target="" host_target=""
@@ -259,8 +260,8 @@ discover_systemd_instances() {
         [ -z "$conf_path" ] && { warn "Skipped $unit — no odoo.conf found"; continue; }
 
         local db_name addons_first
-        db_name="$(grep -E '^[[:space:]]*db_name[[:space:]]*=' "$conf_path" | head -1 | sed 's/^[^=]*=[[:space:]]*//' | tr -d '\r')"
-        addons_first="$(grep -E '^[[:space:]]*addons_path[[:space:]]*=' "$conf_path" | head -1 | sed 's/^[^=]*=[[:space:]]*//' | tr -d '\r' | cut -d',' -f1 | xargs)"
+        db_name="$( { grep -E '^[[:space:]]*db_name[[:space:]]*=' "$conf_path" || true; } | head -1 | sed 's/^[^=]*=[[:space:]]*//' | tr -d '\r')"
+        addons_first="$( { grep -E '^[[:space:]]*addons_path[[:space:]]*=' "$conf_path" || true; } | head -1 | sed 's/^[^=]*=[[:space:]]*//' | tr -d '\r' | cut -d',' -f1 | xargs)"
 
         # Pick a writable addons dir — first one in the list that we can write to
         if [ -z "$addons_first" ] || [ ! -d "$addons_first" ]; then
@@ -365,7 +366,7 @@ detect_odoo_version() {
         if [ "$I_TYPE" = "docker" ]; then
             version_out="$(docker exec "$I_NAME" odoo --version 2>/dev/null || true)"
         else
-            local exec_path; exec_path="$(systemctl cat "$I_NAME" 2>/dev/null | grep -E '^ExecStart=' | head -1 | sed -E 's/^ExecStart=([^ ]+).*/\1/')"
+            local exec_path; exec_path="$( { systemctl cat "$I_NAME" 2>/dev/null | grep -E '^ExecStart=' || true; } | head -1 | sed -E 's/^ExecStart=([^ ]+).*/\1/')"
             [ -z "$exec_path" ] && exec_path="$(command -v odoo || echo /usr/bin/odoo)"
             if [ -x "$exec_path" ]; then
                 version_out="$("$exec_path" --version 2>/dev/null || true)"
@@ -588,8 +589,8 @@ run_odoo_oneshot() {
         fi
         docker start "$I_NAME" >/dev/null
     else
-        local exec_path; exec_path="$(systemctl cat "$I_NAME" | grep -E '^ExecStart=' | head -1 | sed -E 's/^ExecStart=([^ ]+).*/\1/')"
-        local svc_user;  svc_user="$(systemctl cat "$I_NAME" | grep -E '^User=' | head -1 | cut -d= -f2)"
+        local exec_path; exec_path="$( { systemctl cat "$I_NAME" | grep -E '^ExecStart=' || true; } | head -1 | sed -E 's/^ExecStart=([^ ]+).*/\1/')"
+        local svc_user;  svc_user="$( { systemctl cat "$I_NAME" | grep -E '^User=' || true; } | head -1 | cut -d= -f2)"
         [ -z "$svc_user" ] && svc_user="odoo"
         [ -z "$exec_path" ] && exec_path="$(command -v odoo || echo /usr/bin/odoo)"
 
