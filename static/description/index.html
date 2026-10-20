@@ -7,8 +7,7 @@
 
 <section class="oe_container">
     <div class="oe_row oe_spaced">
-        <h2 class="oe_slogan">AMACheck — Send Vendor Checks by Mail</h2>
-        <h3 class="oe_slogan">Powered by Online Check Writer</h3>
+        <h2 class="oe_slogan">AMACheck — Mail Vendor Checks from Odoo</h2>
     </div>
 </section>
 
@@ -16,10 +15,8 @@
     <div class="oe_row oe_spaced">
         <h3>What it does</h3>
         <p>
-            AMACheck connects Odoo vendor payments to the
-            <a href="https://onlinecheckwriter.com">Online Check Writer</a> API so you can
-            mail physical checks to your vendors directly from Odoo — no manual data entry,
-            no printing, no postage.
+            AMACheck turns an Odoo vendor payment into a printed check mailed to your
+            vendor by first-class mail — no printing, no envelopes, no postage.
         </p>
     </div>
 </section>
@@ -28,12 +25,11 @@
     <div class="oe_row oe_spaced">
         <h3>Key Features</h3>
         <ul>
-            <li><strong>One-click Send Check</strong> — send a mailed check from any vendor payment form.</li>
-            <li><strong>Sandbox / Production toggle</strong> — test safely before going live.</li>
-            <li><strong>Automatic payee sync</strong> — vendor address details are synced to AMACheck on every send.</li>
-            <li><strong>Automatic bank account sync</strong> — your bank journal is registered with AMACheck automatically.</li>
-            <li><strong>Duplicate protection</strong> — prevents accidentally sending the same check twice.</li>
-            <li><strong>Detailed error reporting</strong> — clear messages tell you exactly what is missing and where to fix it.</li>
+            <li><strong>One-click Send Check</strong> on any outbound vendor payment.</li>
+            <li><strong>Prepaid eChecks</strong> — buy bundles and track your balance in Settings.</li>
+            <li><strong>Duplicate protection</strong> — the same payment is never mailed twice, even if you click again.</li>
+            <li><strong>Transaction log</strong> with live mail status for every check.</li>
+            <li><strong>Clear error messages</strong> that tell you exactly what to fix and where.</li>
         </ul>
     </div>
 </section>
@@ -42,10 +38,9 @@
     <div class="oe_row oe_spaced">
         <h3>Configuration</h3>
         <ol>
-            <li>Go to <strong>Accounting &gt; Configuration &gt; Settings &gt; AMACheck</strong>.</li>
-            <li>Enter your <strong>AMACheck API Key</strong>.</li>
-            <li>Select <strong>Sandbox</strong> for testing or <strong>Production</strong> for live checks.</li>
-            <li>On your bank journal, click <strong>Sync AMACheck Bank Account</strong> to register your bank.</li>
+            <li>Go to <strong>Settings &gt; AMACheck</strong>, enter your <strong>License Code</strong> and click <strong>Refresh Balance</strong>.</li>
+            <li>Open your bank journal (<strong>Accounting &gt; Configuration &gt; Journals</strong>) and set the <strong>Signer</strong> and <strong>Next Check Number</strong>.</li>
+            <li>Make sure the journal's bank has its 9-digit routing number in <strong>Bank Identifier Code</strong>.</li>
         </ol>
     </div>
 </section>
@@ -54,9 +49,9 @@
     <div class="oe_row oe_spaced">
         <h3>Requirements</h3>
         <ul>
-            <li>An active <a href="https://onlinecheckwriter.com">Online Check Writer</a> account and API key.</li>
-            <li>Odoo 17.0 with the <em>Accounting</em> module installed.</li>
-            <li>Bank journal with a bank account, routing number, and address configured.</li>
+            <li>An AMAChecks license code (<a href="https://www.amachecks.com">amachecks.com</a>).</li>
+            <li>Odoo 18 or 19 with Accounting (Invoicing).</li>
+            <li>A bank journal with account number, routing number and your company address.</li>
         </ul>
     </div>
 </section>

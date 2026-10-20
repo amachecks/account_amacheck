@@ -5,41 +5,12 @@
         <field name="inherit_id" ref="account.view_account_journal_form"/>
         <field name="arch" type="xml">
             <xpath expr="//sheet" position="inside">
-
                 <group string="AMACheck Settings" invisible="type != 'bank'">
-                    <field name="amacheck_is_ocw" invisible="1"/>
-                    <field name="amacheck_assign_check_no" invisible="1"/>
-
-                    <group invisible="not amacheck_is_ocw">
-                        <field name="amacheck_bank_account_id" readonly="1"/>
-                    </group>
-
                     <group>
-                        <field name="amacheck_next_check_no"
-                               string="Next Check Number"
-                               invisible="not amacheck_assign_check_no"/>
-                        <field name="amacheck_signer" string="Signer"/>
-                    </group>
-
-                    <group invisible="not amacheck_is_ocw">
-                        <button name="action_amacheck_test_connection"
-                                string="Test Connection"
-                                type="object"
-                                class="btn-secondary"/>
-                        <button name="action_amacheck_sync_bank_account"
-                                string="Sync Bank Account"
-                                type="object"
-                                class="btn-secondary"/>
-                    </group>
-
-                    <group colspan="2" invisible="not amacheck_is_ocw">
-                        <field name="amacheck_sync_message"
-                               readonly="1"
-                               nolabel="1"
-                               style="color: black;"/>
+                        <field name="amacheck_signer"/>
+                        <field name="amacheck_next_check_no"/>
                     </group>
                 </group>
-
             </xpath>
         </field>
     </record>
