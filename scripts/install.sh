@@ -937,7 +937,7 @@ show_plan() {
             fi
             ;;
         uninstall)
-            warn "  This REMOVES all AMACheck transaction records and settings from '$I_DB'"
+            warn "  This removes AMACheck's fields and settings from '$I_DB' (your check history stays with AMAChecks)"
             info "  $n. Uninstall the module from the database, restart Odoo"; n=$((n+1))
             case "$REMOVE_FILES" in
                 yes) info "  $n. Delete $I_HOST_DIR/$MODULE (a backup is kept in $BACKUP_DIR)" ;;

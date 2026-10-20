@@ -7,7 +7,7 @@
   - **Odoo.sh:** see [Odoo.sh](#odoosh) below — the installer script does not apply
   - **Odoo Online (SaaS):** not supported, because Odoo Online doesn't allow custom modules
 - The `account` and `mail` modules (standard Odoo, installed by default)
-- An active AMAChecks license code (purchase at amachecks.com)
+- An AMAChecks license code and prepaid eChecks (buy eCheck bundles at [amasystems.net/shop](https://www.amasystems.net/shop/echeck-10-pack-33))
 
 ---
 
@@ -192,7 +192,7 @@ Then upgrade it with the same command as in Option B, step 3, using `-u account_
 sudo bash install.sh --uninstall
 ```
 
-This runs the module's uninstall, which removes all AMACheck transaction records and configuration from the database. It then restarts Odoo and asks whether to also delete the addon files from disk. If deleting the files leaves the addons folder empty, the installer also removes that folder from `addons_path`, because Odoo refuses to start with an empty addons folder.
+This uninstalls the module from your Odoo database, which removes the AMACheck fields it added (check status and number on payments, Signer and Next Check Number on journals) and your saved license code. It then restarts Odoo and asks whether to also delete the addon files from disk. If deleting the files leaves the addons folder empty, the installer also removes that folder from `addons_path`, because Odoo refuses to start with an empty addons folder.
 
 To skip the prompt, add one of:
 
@@ -207,7 +207,7 @@ sudo bash install.sh --uninstall --keep-files     # leave the addon folder on di
 2. (Optional) Delete the addon folder. If that leaves the addons folder empty, remove it from `addons_path`.
 3. Restart Odoo.
 
-> **Warning:** Uninstalling deletes every AMACheck transaction record and configuration field from the database. Export your transaction log first if you want to keep a copy.
+> **Note:** Your check history is kept by AMAChecks, not in Odoo, so uninstalling doesn't delete it. Reinstall and enter the same license code to see it again. Payments in Odoo lose their AMACheck status and check number, so export those first if you need them.
 
 ---
 
@@ -223,7 +223,7 @@ sudo bash install.sh --uninstall --keep-files     # leave the addon folder on di
 | Installer can't detect your Odoo version | Pass `--branch 18.0` or `--branch 19.0`. |
 | `$'\r': command not found` when running install.sh | The file has Windows line endings. Re-download it with the `curl` command above, or run `sed -i 's/\r$//' install.sh`. |
 | Something else went wrong | See `/var/log/amacheck-installer.log` for the full Odoo output. |
-| "License Code is not configured" | Enter your license code in Settings → AMACheck and save. |
+| "License Code is not configured" | Enter your license code in Settings → AMACheck and click Refresh Balance. |
 | "Signer is not set" | Open the bank journal and fill in the Signer field. |
 | "Bank routing number must be 9 digits" | Put the routing number in **Bank Identifier Code** on the bank record (Accounting → Configuration → Banks). |
 | "You are out of eChecks" | Buy more from the link in Settings → AMACheck, then click Refresh Balance. |
