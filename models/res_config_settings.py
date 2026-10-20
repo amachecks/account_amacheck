@@ -1,6 +1,22 @@
-from odoo import models, fields
+from odoo import fields, models
 from odoo.exceptions import UserError
-from .amacheck_mixin import amacheck_get_credentials
+
+from .amacheck_mixin import AMACheckError, amacheck_get_credentials
+
+# System parameters written by versions before 1.2 (shared keys, OCW settings).
+# They are no longer used and are removed on upgrade and on Refresh Balance.
+LEGACY_PARAMS = (
+    "account_amacheck.license_api_key",
+    "account_amacheck.checkeeper_api_key",
+    "account_amacheck.active_provider",
+    "account_amacheck.assign_check_no",
+    "account_amacheck.provider_name",
+    "account_amacheck.is_ocw",
+)
+
+
+def remove_legacy_params(env):
+    env["ir.config_parameter"].sudo().search([("key", "in", LEGACY_PARAMS)]).unlink()
 
 
 class ResConfigSettings(models.TransientModel):
@@ -10,57 +26,50 @@ class ResConfigSettings(models.TransientModel):
         string="License Code",
         config_parameter="account_amacheck.license_code",
     )
-
     account_amacheck_checks_left = fields.Integer(
         string="eChecks Available",
         config_parameter="account_amacheck.checks_left",
         readonly=True,
     )
-
-    account_amacheck_active_provider = fields.Integer(
-        string="Active Provider ID",
-        config_parameter="account_amacheck.active_provider",
+    account_amacheck_customer_name = fields.Char(
+        string="Licensed To",
+        config_parameter="account_amacheck.customer_name",
         readonly=True,
     )
 
-    account_amacheck_is_ocw = fields.Boolean(
-        string="Is Online Check Writer",
-        compute="_compute_account_amacheck_is_ocw",
-    )
-
-    def _compute_account_amacheck_is_ocw(self):
-        is_ocw = bool(self.env["ir.config_parameter"].sudo().get_param("account_amacheck.is_ocw"))
-        for record in self:
-            record.account_amacheck_is_ocw = is_ocw
+    def set_values(self):
+        params = self.env["ir.config_parameter"].sudo()
+        old_code = (params.get_param("account_amacheck.license_code") or "").strip()
+        super().set_values()
+        new_code = (params.get_param("account_amacheck.license_code") or "").strip()
+        if new_code != old_code:
+            # Balance and name belong to the old license until refreshed.
+            params.set_param("account_amacheck.checks_left", "0")
+            params.set_param("account_amacheck.customer_name", "")
 
     def action_amacheck_refresh_status(self):
+        """Save the license code shown on screen, then load its balance."""
+        self.ensure_one()
         params = self.env["ir.config_parameter"].sudo()
-        license_code = self.account_amacheck_license_code
+        license_code = (self.account_amacheck_license_code or "").strip()
+        params.set_param("account_amacheck.license_code", license_code)
+        remove_legacy_params(self.env)
 
         try:
             result = amacheck_get_credentials(license_code)
-        except Exception as e:
+        except AMACheckError as e:
+            params.set_param("account_amacheck.checks_left", "0")
+            params.set_param("account_amacheck.customer_name", "")
             raise UserError(str(e))
 
-        params.set_param("account_amacheck.checks_left", str(result.get("ChecksLeft", 0)))
-
-        if "ProviderID" in result:
-            params.set_param("account_amacheck.active_provider", str(result["ProviderID"]))
-
-        if "ProviderAPIKey" in result:
-            params.set_param("account_amacheck.checkeeper_api_key", result["ProviderAPIKey"])
-
-        if "LicenseAPIKey" in result:
-            params.set_param("account_amacheck.license_api_key", result["LicenseAPIKey"])
-
-        assign_check_no = result.get("AssignCheckNo", False)
-        params.set_param("account_amacheck.assign_check_no", "1" if assign_check_no else "")
-
-        provider_name = result.get("ProviderName", "")
-        params.set_param("account_amacheck.provider_name", provider_name)
-        params.set_param("account_amacheck.is_ocw", "1" if provider_name == "OnlineCheckWriter" else "")
-
+        params.set_param("account_amacheck.checks_left", str(int(result.get("ChecksLeft") or 0)))
+        params.set_param("account_amacheck.customer_name", result.get("CustomerName") or "")
         return {"type": "ir.actions.client", "tag": "reload"}
 
     def action_view_transactions(self):
+        self.ensure_one()
+        license_code = (self.account_amacheck_license_code or "").strip()
+        saved = (self.env["ir.config_parameter"].sudo().get_param("account_amacheck.license_code") or "").strip()
+        if license_code != saved:
+            raise UserError("Click Refresh Balance (or Save) to use the new license code first.")
         return self.env["amacheck.transaction.wizard"].action_open()

@@ -1,16 +1,15 @@
 {
     "name": "AMACheck",
-    "version": "18.0.1.1.0",
-    "summary": "Send vendor checks by mail via AMACheck / Online Check Writer",
+    "version": "18.0.1.2.0",
+    "summary": "Mail vendor checks from Odoo payments with AMAChecks",
     "description": """
-Send vendor payments as physical checks via the AMACheck (Online Check Writer) API.
+Mail vendor payments as printed checks through AMAChecks.
 
 Features:
-- Sandbox and Production environment toggle
-- Automatic payee sync to AMACheck
-- Automatic bank account sync to AMACheck
-- Duplicate send protection
-- Detailed error reporting
+- One-click Send Check from a vendor payment
+- Prepaid eCheck balance, checked on every send
+- Duplicate protection: the same payment is never mailed twice
+- Transaction log with live mail status
     """,
     "author": "AMA Systems",
     "website": "https://www.amachecks.com",

@@ -1,170 +1,136 @@
+"""Client for the AMAChecks API (api.amachecks.com/private).
+
+The customer's Odoo talks only to AMAChecks, authenticated by its license
+code. AMAChecks sends the check to Checkeeper on its own servers, so no
+provider key or shared API key is ever stored in this database.
+"""
 import json
-import urllib.request
+import logging
 import urllib.error
+import urllib.request
+
+_logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://api.amachecks.com/private"
 
 _HEADERS = {
     "Content-Type": "application/json",
     "Accept": "application/json",
-    "User-Agent": "AMAChecks-Odoo/1.0",
+    "User-Agent": "AMAChecks-Odoo/1.2",
 }
 
 
-class AMACheckLicenseInactiveError(Exception):
-    pass
+class AMACheckError(Exception):
+    """An error reported by the AMAChecks API. `code` is machine-readable."""
+
+    def __init__(self, message, code="error", data=None):
+        super().__init__(message)
+        self.code = code
+        self.data = data or {}
 
 
-def _post(endpoint, payload, api_key=None):
+class AMACheckLicenseInactiveError(AMACheckError):
+    def __init__(self, message="Your AMAChecks license is inactive.", code="inactive", data=None):
+        super().__init__(message, code, data)
+
+
+def _post(endpoint, payload, api_key=None, timeout=20):
+    """POST JSON to an AMAChecks endpoint and return the decoded response.
+
+    Returns the response dict for both success and API-level failures
+    ({"success": false, ...}), so callers can read `code` and `checksLeft`.
+    Raises AMACheckError only when AMAChecks can't be reached or doesn't
+    answer with JSON.
+
+    `api_key` is only for AMA Systems' own admin calls (crediting eChecks
+    from the store); customer calls never send one.
+    """
+    payload = dict(payload)
     if api_key:
         payload["APIKey"] = api_key
-    data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         _BASE_URL + "/" + endpoint.lstrip("/"),
-        data=data,
+        data=json.dumps(payload).encode("utf-8"),
         headers=_HEADERS,
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=15) as response:
-            return json.loads(response.read().decode("utf-8"))
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            raw = response.read().decode("utf-8")
     except urllib.error.HTTPError as e:
+        raw = e.read().decode("utf-8", errors="replace")
         try:
-            body = json.loads(e.read().decode("utf-8"))
-            raise Exception(body.get("error", str(e)))
-        except Exception as ex:
-            raise Exception(str(ex))
-    except Exception as e:
-        raise Exception("Could not reach AMAChecks API: %s" % str(e))
+            body = json.loads(raw)
+        except ValueError:
+            body = None
+        if isinstance(body, dict):
+            body.setdefault("success", False)
+            body.setdefault("error", "HTTP %s" % e.code)
+            return body
+        raise AMACheckError("AMAChecks API error (HTTP %s)" % e.code, "server_error")
+    except Exception as e:  # timeout, DNS, TLS, connection refused...
+        raise AMACheckError("Could not reach AMAChecks: %s" % e, "unreachable")
+
+    try:
+        body = json.loads(raw)
+    except ValueError:
+        body = None
+    if not isinstance(body, dict):
+        raise AMACheckError("AMAChecks returned an unreadable response", "server_error")
+    return body
+
+
+def _raise_for_failure(result, default):
+    if result.get("success"):
+        return result
+    code = result.get("code") or "error"
+    message = result.get("error") or default
+    if code == "inactive":
+        raise AMACheckLicenseInactiveError(message, code, result)
+    raise AMACheckError(message, code, result)
+
+
+def _require_license(license_code):
+    if not (license_code or "").strip():
+        raise AMACheckError(
+            "AMAChecks License Code is not configured. "
+            "Go to Settings > AMACheck, enter your license code and click Refresh Balance.",
+            "license_required",
+        )
+    return license_code.strip()
 
 
 def amacheck_get_credentials(license_code):
-    """Validate license and return the full API result dict.
-    Raises AMACheckLicenseInactiveError if inactive, Exception for other failures.
-    No API key required — the license code is the authentication for this endpoint.
-    """
-    if not license_code:
-        raise Exception(
-            "AMAChecks License Code is not configured. "
-            "Go to Settings > AMACheck to enter your license code."
-        )
-
-    result = _post("api_validate_license.php", {
-        "LicenseCode": license_code,
-    })
-
-    if not result.get("success"):
-        error = result.get("error", "Unknown error")
-        error_lower = (error or "").lower()
-        if "inactive" in error_lower:
-            raise AMACheckLicenseInactiveError()
-        raise Exception(
-            "Invalid AMAChecks license code. "
-            "Please check the License Code in Settings > AMACheck."
-        )
-
-    return result
+    """Validate a license. Returns {CustomerName, ChecksLeft, Sandbox, ...}.
+    Raises AMACheckLicenseInactiveError if inactive, AMACheckError otherwise."""
+    license_code = _require_license(license_code)
+    result = _post("api_validate_license.php", {"LicenseCode": license_code})
+    return _raise_for_failure(result, "Invalid AMAChecks license code.")
 
 
-def amacheck_sync_bank_account(license_code, bank_payload, api_key):
-    """Sync a bank account with the check provider. Returns bankAccountId."""
-    payload = {"LicenseCode": license_code}
-    payload.update(bank_payload)
-    result = _post("api_sync_bank_account.php", payload, api_key=api_key)
-    if not result.get("success"):
-        raise Exception(result.get("error", "Bank account sync failed"))
-    return result["bankAccountId"]
-
-
-def amacheck_send_check(license_code, bank_account_id, payee_id, amount, memo, vendor, api_key):
-    """Send a check via OCW. Returns the full result dict with checkId, checkNumber, payeeId, checksLeft."""
-    result = _post("api_send_check.php", {
-        "LicenseCode":   license_code,
-        "bankAccountId": bank_account_id,
-        "payeeId":       payee_id or None,
-        "amount":        amount,
-        "memo":          memo,
-        "vendor":        vendor,
-    }, api_key=api_key)
-    if not result.get("success"):
-        raise Exception(result.get("error", "Check send failed"))
-    return result
-
-
-def amacheck_log_transaction(license_code, check_no, payee, bank, bank_account, amount, result, api_key, decrement=False):
-    """Log a check transaction to TransactionLog via the PHP endpoint.
-    If decrement=True, also decrements ChecksLeft and returns the new balance.
-    Returns the checksLeft value if decrement=True, otherwise None.
-    """
-    masked = ("****" + str(bank_account)[-4:]) if bank_account else ""
-    try:
-        response = _post("api_log_transaction.php", {
-            "LicenseCode": license_code,
-            "checkNo":     check_no or "",
-            "payee":       payee or "",
-            "bank":        bank or "",
-            "bankAccount": masked,
-            "amount":      amount,
-            "result":      result if isinstance(result, str) else json.dumps(result),
-            "Decrement":   decrement,
-        }, api_key=api_key)
-        return response.get("checksLeft")
-    except Exception as e:
-        # Never let logging failure interrupt the payment flow
-        import logging
-        logging.getLogger(__name__).warning("AMAChecks TransactionLog failed: %s", str(e))
-        return None
-
-
-def amacheck_get_check_status(check_id, license_code, api_key):
-    """Fetch the current status of a check from the provider via the PHP API."""
-    result = _post("api_get_check_status.php", {
-        "LicenseCode": license_code,
-        "CheckID":     check_id,
-    }, api_key=api_key)
-    if not result.get("success"):
-        raise Exception(result.get("error", "Failed to fetch check status"))
-    return result
-
-
-def amacheck_get_transactions(license_code, api_key):
-    """Fetch the TransactionLog for this license from the PHP API. Returns a list of dicts."""
-    result = _post("api_get_transactions.php", {
-        "LicenseCode": license_code,
-    }, api_key=api_key)
-    if not result.get("success"):
-        raise Exception(result.get("error", "Failed to fetch transactions"))
-    return result.get("transactions", [])
-
-
-def checkeeper_post(url, api_key, payload):
-    """POST to the Checkeeper API with Bearer auth.
-    Returns (http_status_code, result_dict).
-    """
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=data,
-        headers={
-            "Authorization": "Bearer " + api_key,
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-        method="POST",
+def amacheck_send_check(license_code, client_ref, check):
+    """Ask AMAChecks to mail one check. Returns the response dict:
+      success → {checkId, checkNumber, checksLeft, sandbox}
+      failure → {code, error, checksLeft}
+    Raises AMACheckError if AMAChecks couldn't be reached at all."""
+    license_code = _require_license(license_code)
+    # AMAChecks waits up to 45s for Checkeeper; give it room.
+    return _post(
+        "api_send_check.php",
+        {"LicenseCode": license_code, "ClientRef": client_ref, "Check": check},
+        timeout=75,
     )
-    try:
-        with urllib.request.urlopen(req, timeout=15) as response:
-            status = response.getcode()
-            return status, json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        status = e.code
-        try:
-            raw = e.read().decode("utf-8")
-        except Exception:
-            raw = ""
-        try:
-            return status, json.loads(raw)
-        except Exception:
-            return status, {"error": "%s — %s" % (str(e), raw) if raw else str(e)}
-    except Exception as e:
-        raise Exception("Could not reach AMAChecks API: %s" % str(e))
+
+
+def amacheck_get_transactions(license_code):
+    """This license's check history (newest first)."""
+    license_code = _require_license(license_code)
+    result = _post("api_get_transactions.php", {"LicenseCode": license_code})
+    return _raise_for_failure(result, "Failed to fetch transactions").get("transactions", [])
+
+
+def amacheck_get_check_status(license_code, check_id):
+    """Live mail status of one of this license's checks, e.g. 'mailed'."""
+    license_code = _require_license(license_code)
+    result = _post("api_get_check_status.php", {"LicenseCode": license_code, "CheckID": check_id})
+    return _raise_for_failure(result, "Failed to fetch check status").get("status", "unknown")

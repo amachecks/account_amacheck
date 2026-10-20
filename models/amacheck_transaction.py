@@ -4,13 +4,13 @@ import io
 import json
 import logging
 
-from odoo import models, fields, api
+from odoo import api, fields, models
 from odoo.exceptions import UserError
-from .amacheck_mixin import amacheck_get_transactions, amacheck_get_check_status
+
+from .amacheck_mixin import AMACheckError, amacheck_get_check_status, amacheck_get_transactions
 
 _logger = logging.getLogger(__name__)
 
-# Human-readable labels for check status values
 _STATUS_LABELS = {
     "processing":  "Processing",
     "ready":       "Ready",
@@ -23,139 +23,88 @@ _STATUS_LABELS = {
     "pdf":         "PDF Returned",
 }
 
+_SEND_STATES = [
+    ("sent",        "Sent"),
+    ("failed",      "Failed"),
+    ("unconfirmed", "Unconfirmed"),
+    ("pending",     "Pending"),
+]
+
+
+def _license_code(env):
+    return env["ir.config_parameter"].sudo().get_param("account_amacheck.license_code")
+
 
 class AMACheckTransactionLine(models.TransientModel):
     _name = "amacheck.transaction.line"
     _description = "AMACheck Transaction Log Line"
 
-    wizard_id      = fields.Many2one("amacheck.transaction.wizard", ondelete="cascade")
-    trans_date     = fields.Datetime(string="Transaction Date", readonly=True)
-    check_no       = fields.Char(string="Check Number", readonly=True)
-    payee          = fields.Char(string="Payee", readonly=True)
-    bank           = fields.Char(string="Bank", readonly=True)
-    bank_account   = fields.Char(string="Account", readonly=True)
-    amount         = fields.Float(string="Amount", digits=(16, 2), readonly=True)
-    result         = fields.Text(string="Result", readonly=True)
-    checkeeper_id  = fields.Char(string="Check ID", readonly=True)
+    wizard_id     = fields.Many2one("amacheck.transaction.wizard", ondelete="cascade")
+    trans_date    = fields.Datetime(string="Transaction Date", readonly=True)
+    check_no      = fields.Char(string="Check Number", readonly=True)
+    payee         = fields.Char(string="Payee", readonly=True)
+    bank          = fields.Char(string="Bank", readonly=True)
+    bank_account  = fields.Char(string="Account", readonly=True)
+    amount        = fields.Float(string="Amount", digits=(16, 2), readonly=True)
+    send_state    = fields.Selection(_SEND_STATES, string="Result", readonly=True)
+    result        = fields.Text(string="Details", readonly=True)
+    checkeeper_id = fields.Char(string="Check ID", readonly=True)
 
-    # Computed on demand — only fetches when the detail form is opened (not in list)
-    check_status = fields.Char(
-        string="Status",
-        compute="_compute_check_status",
-        store=False,
-    )
+    # Fetched live from AMAChecks only when a line is opened
+    check_status = fields.Char(string="Mail Status", compute="_compute_check_status", store=False)
 
     def _compute_check_status(self):
-        params          = self.env["ir.config_parameter"].sudo()
-        license_code    = params.get_param("account_amacheck.license_code")
-        license_api_key = params.get_param("account_amacheck.license_api_key") or ""
-
+        license_code = _license_code(self.env)
         for line in self:
-            checkeeper_id = line.checkeeper_id
-            _logger.info("AMACheck _compute_check_status: check_no=%r checkeeper_id=%r", line.check_no, checkeeper_id)
-
-            # Fallback: parse checkeeper_id out of the Result JSON (data.checks[0].id)
-            if not checkeeper_id and line.result:
-                try:
-                    result_data = json.loads(line.result)
-                    checks = (result_data.get("data") or {}).get("checks") or []
-                    if checks:
-                        checkeeper_id = str(checks[0].get("id") or "")
-                        _logger.info("AMACheck _compute_check_status: parsed checkeeper_id from result=%r", checkeeper_id)
-                except Exception:
-                    pass
-
-            # Secondary fallback: look up via payment record
-            if not checkeeper_id and line.check_no:
-                payment = self.env["account.payment"].search([
-                    ("amacheck_check_number", "=", line.check_no),
-                    ("amacheck_zil_id", "!=", False),
-                ], limit=1)
-                _logger.info("AMACheck _compute_check_status: payment fallback found=%s", bool(payment))
-                if payment:
-                    checkeeper_id = payment.amacheck_zil_id
-                    _logger.info("AMACheck _compute_check_status: fallback checkeeper_id=%r", checkeeper_id)
-
-            if checkeeper_id:
-                try:
-                    result     = amacheck_get_check_status(checkeeper_id, license_code, license_api_key)
-                    raw_status = result.get("status", "unknown")
-                    line.check_status = _STATUS_LABELS.get(raw_status, raw_status.replace("_", " ").title())
-                    _logger.info("AMACheck _compute_check_status: status=%r", line.check_status)
-                except Exception as e:
-                    _logger.warning("AMACheck status fetch failed for %s: %s", checkeeper_id, e)
-                    line.check_status = "Unavailable"
-            else:
-                _logger.info("AMACheck _compute_check_status: no checkeeper_id found — status blank")
+            if line.send_state != "sent" or not line.checkeeper_id:
                 line.check_status = ""
-
-
-class AMACheckStatusPopup(models.TransientModel):
-    _name = "amacheck.status.popup"
-    _description = "AMACheck Check Status (unused)"
+                continue
+            try:
+                raw = amacheck_get_check_status(license_code, line.checkeeper_id)
+                line.check_status = _STATUS_LABELS.get(raw, raw.replace("_", " ").title())
+            except AMACheckError as e:
+                _logger.warning("AMACheck status fetch failed for %s: %s", line.checkeeper_id, e)
+                line.check_status = "Unavailable"
 
 
 class AMACheckTransactionWizard(models.TransientModel):
     _name = "amacheck.transaction.wizard"
     _description = "AMACheck Transaction Log"
 
-    line_ids = fields.One2many(
-        "amacheck.transaction.line", "wizard_id",
-        string="Transactions", readonly=True,
-    )
+    line_ids     = fields.One2many("amacheck.transaction.line", "wizard_id", string="Transactions", readonly=True)
     csv_file     = fields.Binary(string="CSV File", readonly=True, attachment=False)
     csv_filename = fields.Char(string="CSV Filename", readonly=True)
 
     @api.model
     def action_open(self):
-        params          = self.env["ir.config_parameter"].sudo()
-        license_code    = params.get_param("account_amacheck.license_code")
-        license_api_key = params.get_param("account_amacheck.license_api_key") or ""
-
         try:
-            transactions = amacheck_get_transactions(license_code, license_api_key)
-        except Exception as e:
+            transactions = amacheck_get_transactions(_license_code(self.env))
+        except AMACheckError as e:
             raise UserError(str(e))
 
-        # Build a lookup of check_number -> provider check ID from account.payment records
-        checkeeper_map = {}
-        payments = self.env["account.payment"].search([
-            ("amacheck_zil_id", "!=", False),
-            ("amacheck_check_number", "!=", False),
-        ])
-        for p in payments:
-            checkeeper_map[p.amacheck_check_number] = p.amacheck_zil_id
-
+        states = {key for key, _label in _SEND_STATES}
         lines = []
         for t in transactions:
-            check_no   = str(t.get("CheckNo") or "")
-            result_str = t.get("Result") or ""
-
-            # Try to get checkeeper_id from the payment map first,
-            # then fall back to parsing it out of the Result JSON
-            checkeeper_id = checkeeper_map.get(check_no, "")
-            if not checkeeper_id and result_str:
-                try:
-                    result_data = json.loads(result_str)
-                    checks = (result_data.get("data") or {}).get("checks") or []
-                    if checks:
-                        checkeeper_id = str(checks[0].get("id") or "")
-                except Exception:
-                    pass
-
+            state = t.get("Status") or ("sent" if t.get("CheckNo") else "failed")
+            result = t.get("Result") or ""
+            # Older rows stored the whole provider response; show it readably.
+            try:
+                result = json.dumps(json.loads(result), indent=2)
+            except (ValueError, TypeError):
+                pass
             lines.append((0, 0, {
                 "trans_date":    t.get("TransDate") or False,
-                "check_no":      check_no,
+                "check_no":      str(t.get("CheckNo") or ""),
                 "payee":         t.get("Payee") or "",
                 "bank":          t.get("Bank") or "",
                 "bank_account":  t.get("BankAccount") or "",
                 "amount":        float(t.get("Amount") or 0),
-                "result":        result_str,
-                "checkeeper_id": checkeeper_id,
+                "send_state":    state if state in states else False,
+                "result":        result,
+                "checkeeper_id": t.get("CheckeeperID") or "",
             }))
 
         wizard = self.create({"line_ids": lines})
-
         return {
             "type":      "ir.actions.act_window",
             "name":      "Transaction Log",
@@ -166,12 +115,11 @@ class AMACheckTransactionWizard(models.TransientModel):
         }
 
     def action_export_csv(self):
+        self.ensure_one()
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow([
-            "Transaction Date", "Check Number", "Payee",
-            "Bank", "Account", "Amount",
-        ])
+        writer.writerow(["Transaction Date", "Check Number", "Payee", "Bank", "Account", "Amount", "Result"])
+        labels = dict(_SEND_STATES)
         for line in self.line_ids:
             writer.writerow([
                 fields.Datetime.to_string(line.trans_date) if line.trans_date else "",
@@ -180,17 +128,16 @@ class AMACheckTransactionWizard(models.TransientModel):
                 line.bank or "",
                 line.bank_account or "",
                 "%.2f" % line.amount,
+                labels.get(line.send_state, ""),
             ])
 
-        csv_bytes = output.getvalue().encode("utf-8-sig")  # BOM for Excel compatibility
-
         self.write({
-            "csv_file":     base64.b64encode(csv_bytes),
+            "csv_file":     base64.b64encode(output.getvalue().encode("utf-8-sig")),
             "csv_filename": "amacheck_transactions.csv",
         })
-
         return {
             "type":   "ir.actions.act_url",
-            "url":    "/web/content?model=amacheck.transaction.wizard&id=%d&field=csv_file&filename=%s&download=true" % (self.id, self.csv_filename),
+            "url":    "/web/content?model=amacheck.transaction.wizard&id=%d&field=csv_file&filename=%s&download=true"
+                      % (self.id, self.csv_filename),
             "target": "new",
         }

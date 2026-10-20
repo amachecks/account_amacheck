@@ -137,8 +137,7 @@ The installer script doesn't apply to Odoo.sh. Instead:
 
 1. Go to **Settings → AMACheck**
 2. Enter your **License Code**
-3. Click **Refresh Balance**. This loads your provider settings and eCheck balance.
-4. Save
+3. Click **Refresh Balance**. This saves the code and shows your eCheck balance and the name the license is registered to.
 
 ---
 
@@ -148,8 +147,9 @@ The installer script doesn't apply to Odoo.sh. Instead:
 2. Open your bank journal (e.g. "Bank")
 3. Scroll to the **AMACheck Settings** section
 4. Fill in the **Signer** field (the name that will appear as the check signer)
-5. If your provider assigns check numbers, set the **Next Check Number**
-6. Save
+5. Set the **Next Check Number** to the number your next check should carry (it goes up by one after each check)
+6. Make sure the journal's bank account has an account number, and its bank (**Accounting → Configuration → Banks**) has the 9-digit routing number in **Bank Identifier Code**
+7. Save
 
 ---
 
@@ -158,7 +158,7 @@ The installer script doesn't apply to Odoo.sh. Instead:
 1. Go to **Accounting → Vendors → Payments**
 2. Create or open an outbound vendor payment
 3. Make sure the vendor has a complete address (Street, City, State, ZIP, Country)
-4. Click **Send AMACheck**
+4. Click **Send Check**
 5. When it succeeds, the **AMACheck** section on the payment shows Status, Check ID, Check Number, and Sent On
 
 ---
@@ -225,5 +225,8 @@ sudo bash install.sh --uninstall --keep-files     # leave the addon folder on di
 | Something else went wrong | See `/var/log/amacheck-installer.log` for the full Odoo output. |
 | "License Code is not configured" | Enter your license code in Settings → AMACheck and save. |
 | "Signer is not set" | Open the bank journal and fill in the Signer field. |
-| "AMAChecks API key is not configured" | Click Refresh Balance in Settings → AMACheck. |
+| "Bank routing number must be 9 digits" | Put the routing number in **Bank Identifier Code** on the bank record (Accounting → Configuration → Banks). |
+| "You are out of eChecks" | Buy more from the link in Settings → AMACheck, then click Refresh Balance. |
+| Payment shows **Unconfirmed** | The mail service didn't confirm the check, so it may or may not have been mailed. Don't resend it: contact AMA Systems with the reference number shown on the payment. |
+| "Could not reach AMAChecks" | It's safe to click Send Check again. AMAChecks never mails the same payment twice. |
 | Vendor address errors | Open the vendor record and complete all address fields. |

@@ -6,14 +6,18 @@
         <field name="arch" type="xml">
             <form string="AMACheck Transaction Log">
                 <field name="line_ids" readonly="0">
-                    <list string="Transactions" decoration-danger="result != '' and result != 'OK'" delete="0" create="0" edit="0">
-                        <field name="trans_date"    string="Transaction Date" optional="show"/>
-                        <field name="check_no"      string="Check Number"     optional="show"/>
-                        <field name="payee"         string="Payee"            optional="show"/>
-                        <field name="bank"          string="Bank"             optional="show"/>
-                        <field name="bank_account"  string="Account"          optional="show"/>
-                        <field name="amount"        string="Amount"           optional="show" widget="monetary"/>
-                        <field name="checkeeper_id" string="Check ID"         optional="hide"/>
+                    <list string="Transactions"
+                          decoration-danger="send_state == 'failed'"
+                          decoration-warning="send_state in ('unconfirmed', 'pending')"
+                          delete="0" create="0" edit="0">
+                        <field name="trans_date"    optional="show"/>
+                        <field name="check_no"      optional="show"/>
+                        <field name="payee"         optional="show"/>
+                        <field name="bank"          optional="show"/>
+                        <field name="bank_account"  optional="show"/>
+                        <field name="amount"        optional="show"/>
+                        <field name="send_state"    optional="show"/>
+                        <field name="checkeeper_id" optional="hide"/>
                     </list>
                 </field>
                 <footer>
@@ -33,21 +37,20 @@
                 <sheet>
                     <group>
                         <group string="Check">
-                            <field name="check_no"     string="Check Number"      readonly="1"/>
-                            <field name="trans_date"   string="Transaction Date"  readonly="1"/>
-                            <field name="amount"       string="Amount" widget="monetary" readonly="1"/>
+                            <field name="check_no"/>
+                            <field name="trans_date"/>
+                            <field name="amount"/>
+                            <field name="send_state"/>
+                            <field name="check_status" invisible="send_state != 'sent'"/>
                         </group>
                         <group string="Payee">
-                            <field name="payee"        string="Payee"   readonly="1"/>
-                            <field name="bank"         string="Bank"    readonly="1"/>
-                            <field name="bank_account" string="Account" readonly="1"/>
+                            <field name="payee"/>
+                            <field name="bank"/>
+                            <field name="bank_account"/>
                         </group>
                     </group>
-                    <group string="Check Status">
-                        <field name="check_status" string="Status" readonly="1"/>
-                    </group>
-                    <group string="Result">
-                        <field name="result" string="" nolabel="1" widget="text" readonly="1"/>
+                    <group string="Details" invisible="not result">
+                        <field name="result" nolabel="1" colspan="2"/>
                     </group>
                     <field name="wizard_id"     invisible="1"/>
                     <field name="checkeeper_id" invisible="1"/>

@@ -1,66 +1,38 @@
 import logging
 
-from odoo import models, fields
+from odoo import fields, models
 from odoo.exceptions import UserError
-from .amacheck_mixin import amacheck_get_credentials, amacheck_send_check, checkeeper_post, amacheck_log_transaction, AMACheckLicenseInactiveError
-import json
+
+from .amacheck_mixin import AMACheckError, amacheck_send_check
 
 _logger = logging.getLogger(__name__)
-
-_CHECKEEPER_URL = "https://api.checkeeper.com/v3/check"
-_PROVIDER_CHECKEEPER = 3
 
 
 class AccountPayment(models.Model):
     _inherit = "account.payment"
 
     amacheck_state = fields.Selection([
-        ("ready",  "Ready"),
-        ("sent",   "Sent"),
-        ("failed", "Failed"),
-    ], string="Status")
+        ("ready",       "Ready"),
+        ("sent",        "Sent"),
+        ("unconfirmed", "Unconfirmed"),
+        ("failed",      "Failed"),
+    ], string="AMACheck Status", copy=False)
 
-    amacheck_zil_id       = fields.Char(string="Check ID")
+    # Checkeeper check id (field name kept from earlier versions to preserve data)
+    amacheck_zil_id       = fields.Char(string="Check ID", copy=False)
     amacheck_check_number = fields.Char(string="Check Number", copy=False)
-    amacheck_sent_at      = fields.Datetime(string="Sent On")
-    amacheck_error        = fields.Text(string="Errors")
+    amacheck_sent_at      = fields.Datetime(string="Sent On", copy=False)
+    amacheck_error        = fields.Text(string="Errors", copy=False)
     amacheck_inactive     = fields.Boolean(string="License Inactive", default=False, copy=False)
 
-    def _amacheck_validate_company(self):
-        """Ensure the Odoo company has all fields required for the check from_address/bundle_return."""
-        self.ensure_one()
-        company_partner = self.company_id.partner_id
+    # ------------------------------------------------------------------
+    # Validation
+    # ------------------------------------------------------------------
+
+    def _amacheck_check_partner_address(self, partner, label):
         missing = []
-
-        if not company_partner.name:
-            missing.append("Company Name")
-        if not company_partner.street:
-            missing.append("Street Address")
-        if not company_partner.city:
-            missing.append("City")
-        if not company_partner.state_id:
-            missing.append("State")
-        if not company_partner.zip:
-            missing.append("ZIP")
-        if not company_partner.country_id:
-            missing.append("Country")
-
-        if missing:
-            raise UserError(
-                "Your company '%s' is missing required fields for AMACheck: %s\n\n"
-                "Go to Settings → Companies → %s and complete the address."
-                % (
-                    company_partner.name or "(no name)",
-                    ", ".join(missing),
-                    company_partner.name or "(no name)",
-                )
-            )
-
-    def _amacheck_validate_partner(self, partner):
-        missing = []
-
         if not partner.name:
-            missing.append("Vendor Name")
+            missing.append("Name")
         if not partner.street:
             missing.append("Street Address")
         if not partner.city:
@@ -71,386 +43,209 @@ class AccountPayment(models.Model):
             missing.append("ZIP")
         if not partner.country_id:
             missing.append("Country")
-
         if missing:
             raise UserError(
-                "Vendor '%s' is missing required fields for AMACheck: %s"
-                % (partner.name or "(no name)", ", ".join(missing))
+                "%s '%s' is missing required fields for AMACheck: %s"
+                % (label, partner.name or "(no name)", ", ".join(missing))
             )
-
-    def _amacheck_vendor_payload(self, partner):
-        return {
-            "name":    partner.name,
-            "company": partner.commercial_company_name or partner.parent_id.name or partner.name,
-            "email":   partner.email or "",
-            "phone":   partner.phone or partner.mobile or "",
-            "address1": partner.street or "",
-            "address2": partner.street2 or "",
-            "city":    partner.city or "",
-            "state":   partner.state_id.code or partner.state_id.name or "",
-            "zip":     partner.zip or "",
-            "country": partner.country_id.code or partner.country_id.name or "",
-        }
 
     def _amacheck_get_bank_journal(self):
         self.ensure_one()
-
-        if self.journal_id and self.journal_id.type == "bank":
-            return self.journal_id
-
-        raise UserError(
-            "Payment '%s' must use a Bank journal to send via AMACheck. "
-            "Change the journal on this payment to a bank account journal."
-            % (self.name or self.id)
-        )
-
-    def _amacheck_validate_journal_bank(self, journal):
-        """Ensure the journal has a fully configured bank before sending via Checkeeper."""
-        missing = []
+        journal = self.journal_id
+        if not journal or journal.type != "bank":
+            raise UserError(
+                "Payment '%s' must use a Bank journal to send via AMACheck. "
+                "Change the journal on this payment to a bank account journal."
+                % (self.name or self.id)
+            )
 
         bank_account = journal.bank_account_id
         if not bank_account:
             raise UserError(
-                "Journal '%s' does not have a Bank Account configured. "
-                "Go to Accounting > Configuration > Journals > %s and assign a bank account."
-                % (journal.name, journal.name)
+                "Journal '%s' does not have a Bank Account. Go to Accounting > "
+                "Configuration > Journals > %s and set one." % (journal.name, journal.name)
             )
-
+        if not bank_account.acc_number:
+            raise UserError(
+                "The bank account on journal '%s' has no account number." % journal.name
+            )
         bank = bank_account.bank_id
         if not bank:
             raise UserError(
-                "The bank account on journal '%s' does not have a Bank specified. "
-                "Open the bank account and assign a bank."
-                % journal.name
+                "The bank account on journal '%s' has no Bank set. Open the bank account "
+                "and choose the bank (it holds the routing number)." % journal.name
             )
-
         if not bank.bic:
-            missing.append("Bank Identifier Code (Routing Number)")
-        if not bank.street:
-            missing.append("Bank Street Address")
-        if not bank.city:
-            missing.append("Bank City")
-        if not bank.zip:
-            missing.append("Bank ZIP")
-        if not bank.country:
-            missing.append("Bank Country")
-
-        if missing:
             raise UserError(
-                "Bank '%s' on journal '%s' is missing required fields: %s\n\n"
-                "Go to Accounting > Configuration > Banks and complete the bank record."
-                % (bank.name or "(no name)", journal.name, ", ".join(missing))
+                "Bank '%s' has no routing number. Go to Accounting > Configuration > Banks "
+                "and enter the 9-digit routing number as the Bank Identifier Code."
+                % (bank.name or "(no name)")
             )
+        if not (journal.amacheck_signer or "").strip():
+            raise UserError(
+                "Signer is not set on journal '%s'. Go to Accounting > Configuration > "
+                "Journals > %s > AMACheck Settings." % (journal.name, journal.name)
+            )
+        return journal
 
-    def _amacheck_get_or_create_bank_account_id(self, journal):
-        if journal.amacheck_bank_account_id:
-            return journal.amacheck_bank_account_id
+    # ------------------------------------------------------------------
+    # Payload
+    # ------------------------------------------------------------------
 
-        journal.action_amacheck_sync_bank_account()
-
-        if journal.amacheck_bank_account_id:
-            return journal.amacheck_bank_account_id
-
-        raise UserError(
-            "Unable to create or locate AMACheck bank account: %s"
-            % (journal.amacheck_sync_message or "Unknown error")
-        )
+    @staticmethod
+    def _amacheck_state_code(partner):
+        return partner.state_id.code or partner.state_id.name or ""
 
     def _amacheck_address_lines(self, partner):
-        """Build a Checkeeper payer/payee address dict from an Odoo partner.
-
-        line1 = Name
-        line2 = Street 1
-        line3 = Street 2  (if present), otherwise City, State ZIP
-        line4 = City, State ZIP  (only when Street 2 is present)
-        """
-        state   = partner.state_id.code or partner.state_id.name or ""
-        csz     = ", ".join(filter(None, [partner.city, state]))
+        """Name / street / [street2] / City, ST ZIP — as printed on the check."""
+        csz = ", ".join(filter(None, [partner.city, self._amacheck_state_code(partner)]))
         if partner.zip:
-            csz = (csz + " " + partner.zip).strip() if csz else partner.zip
+            csz = (csz + " " + partner.zip).strip()
+        return [line for line in (partner.name, partner.street, partner.street2, csz) if line]
 
-        if partner.street2:
-            return {
-                "line1": partner.name or "",
-                "line2": partner.street or "",
-                "line3": partner.street2,
-                "line4": csz,
-            }
-        return {
-            "line1": partner.name or "",
-            "line2": partner.street or "",
-            "line3": csz,
+    def _amacheck_address(self, partner, with_company=False):
+        address = {
+            "name":    partner.name or "",
+            "line1":   partner.street or "",
+            "line2":   partner.street2 or "",
+            "city":    partner.city or "",
+            "state":   self._amacheck_state_code(partner),
+            "zip":     partner.zip or "",
+            "country": partner.country_id.code or "US",
         }
-
-    def _amacheck_checkeeper_payload(self, journal, signer):
-        partner         = self.partner_id
-        company_partner = self.company_id.partner_id
-        bank_account    = journal.bank_account_id
-        bank            = bank_account.bank_id
-
-        return {
-            "delivery": {
-                "method": "usps.first_class",
-                "bundle_address": {
-                    "name":    partner.name,
-                    "company": partner.commercial_company_name or partner.parent_id.name or partner.name,
-                    "line1":   partner.street or "",
-                    "line2":   partner.street2 or "",
-                    "city":    partner.city or "",
-                    "state":   partner.state_id.code or partner.state_id.name or "",
-                    "zip":     partner.zip or "",
-                    "country": partner.country_id.code or "US",
-                },
-                "bundle_return": {
-                    "name":  company_partner.name,
-                    "line1": company_partner.street or "",
-                    "line2": company_partner.street2 or "",
-                    "city":  company_partner.city or "",
-                    "state": company_partner.state_id.code or company_partner.state_id.name or "",
-                    "zip":   company_partner.zip or "",
-                    "country": "US",
-                },
-            },
-            "checks": [
-                {
-                    "bank": {
-                        "routing": bank.bic or "",
-                        "account": bank_account.acc_number or "",
-                    },
-                    "payer": self._amacheck_address_lines(company_partner),
-                    "payee": self._amacheck_address_lines(partner),
-                    "signer": {"type": "text", "value": signer},
-                    "amount": int(round(self.amount * 100)),
-                    "number": journal.amacheck_next_check_no,
-                    "date":   fields.Date.today().strftime("%Y-%m-%d"),
-                    "memo":   self.memo or "",
-                    "from_address": {
-                        "name":  company_partner.name,
-                        "line1": company_partner.street or "",
-                        "line2": company_partner.street2 or "",
-                        "city":  company_partner.city or "",
-                        "state": company_partner.state_id.code or company_partner.state_id.name or "",
-                        "zip":   company_partner.zip or "",
-                        "country": "US",
-                    },
-                    "to_address": {
-                        "name":  partner.name,
-                        "line1": partner.street or "",
-                        "line2": partner.street2 or "",
-                        "city":  partner.city or "",
-                        "state": partner.state_id.code or partner.state_id.name or "",
-                        "zip":   partner.zip or "",
-                        "country": partner.country_id.code or "US",
-                    },
-                }
-            ],
-        }
-
-    def _action_send_via_checkeeper(self, journal, checkeeper_api_key, signer, license_code, license_api_key):
-        if not journal.amacheck_next_check_no:
-            journal.amacheck_next_check_no = 10000
-
-        bank_account = journal.bank_account_id
-        bank         = bank_account.bank_id
-        bank_name    = bank.name or ""
-        acc_number   = bank_account.acc_number or ""
-        check_no     = str(journal.amacheck_next_check_no)
-
-        _logger.info("AMACheck send: memo=%r name=%r", self.memo, self.name)
-        payload          = self._amacheck_checkeeper_payload(journal, signer)
-        status_code, result = checkeeper_post(_CHECKEEPER_URL, checkeeper_api_key, payload)
-
-        if status_code in (200, 201):
-            checks       = (result.get("data") or {}).get("checks") or []
-            payment_id   = checks[0].get("id") or "" if checks else ""
-            check_number = str(checks[0].get("number", "")) if checks else check_no
-
-            self.write({
-                "amacheck_state":        "sent",
-                "amacheck_zil_id":       payment_id,
-                "amacheck_check_number": check_number,
-                "amacheck_sent_at":      fields.Datetime.now(),
-                "amacheck_error":        False,
-                "amacheck_inactive":     False,
-            })
-            checks_left = amacheck_log_transaction(
-                license_code, check_number, self.partner_id.name or "",
-                bank_name, acc_number, float(self.amount), result, license_api_key,
-                decrement=True,
+        if with_company:
+            address["company"] = (
+                partner.commercial_company_name or partner.parent_id.name or partner.name or ""
             )
-            if checks_left is not None:
-                self.env["ir.config_parameter"].sudo().set_param(
-                    "account_amacheck.checks_left", str(checks_left)
-                )
-            journal.amacheck_next_check_no += 1
-            return True
+        return address
 
-        # Failure — capture the best available error message
-        error_msg  = result.get("error") or result.get("message") or ("HTTP %s" % status_code)
-        error_text = (
-            "AMAChecks check send failed (HTTP %s): %s\n\nPayload:\n%s\n\nResponse:\n%s"
-            % (status_code, error_msg, json.dumps(payload, indent=2), json.dumps(result, indent=2))
-        )
+    def _amacheck_check_payload(self, journal):
+        self.ensure_one()
+        vendor       = self.partner_id
+        company      = self.company_id.partner_id
+        bank_account = journal.bank_account_id
+        return {
+            "number":       journal.amacheck_next_check_no,
+            "date":         fields.Date.context_today(self).strftime("%Y-%m-%d"),
+            "amount_cents": int(round(self.amount * 100)),
+            "memo":         (self.memo or "")[:120],
+            "signer":       journal.amacheck_signer.strip(),
+            "bank": {
+                "name":    bank_account.bank_id.name or "",
+                "routing": bank_account.bank_id.bic or "",
+                "account": bank_account.acc_number or "",
+            },
+            "payer_lines":  self._amacheck_address_lines(company),
+            "payee_lines":  self._amacheck_address_lines(vendor),
+            "from_address": self._amacheck_address(company),
+            "to_address":   self._amacheck_address(vendor, with_company=True),
+        }
+
+    def _amacheck_client_ref(self):
+        """Stable per-payment key so AMAChecks never mails the same payment twice."""
+        self.ensure_one()
+        db_uuid = self.env["ir.config_parameter"].sudo().get_param("database.uuid") or self.env.cr.dbname
+        return "%s:%s" % (db_uuid, self.id)
+
+    # ------------------------------------------------------------------
+    # Send
+    # ------------------------------------------------------------------
+
+    def _amacheck_fail(self, message, inactive=False):
         self.write({
-            "amacheck_state":        "failed",
-            "amacheck_zil_id":       False,
-            "amacheck_check_number": False,
-            "amacheck_sent_at":      False,
-            "amacheck_error":        error_text,
-            "amacheck_inactive":     False,
+            "amacheck_state":    "failed",
+            "amacheck_error":    message,
+            "amacheck_inactive": inactive,
         })
-        amacheck_log_transaction(
-            license_code, "", self.partner_id.name or "",
-            bank_name, acc_number, float(self.amount), error_text, license_api_key,
-        )
-        return False
 
     def action_send_amacheck(self):
-        params          = self.env["ir.config_parameter"].sudo()
-        license_code    = params.get_param("account_amacheck.license_code")
-        license_api_key = params.get_param("account_amacheck.license_api_key") or ""
-
-        active_provider    = int(params.get_param("account_amacheck.active_provider", 1) or 1)
-        checkeeper_api_key = params.get_param("account_amacheck.checkeeper_api_key") or ""
-
-        if active_provider == _PROVIDER_CHECKEEPER and not checkeeper_api_key:
-            for payment in self:
-                payment.write({
-                    "amacheck_state":    "failed",
-                    "amacheck_inactive": False,
-                    "amacheck_error": (
-                        "AMAChecks API key is not configured. "
-                        "Please go to Settings > AMACheck and click 'Refresh Balance' to load your provider settings."
-                    ),
-                })
-            return True
-
-        try:
-            result     = amacheck_get_credentials(license_code)
-            checks_left = result.get("ChecksLeft", 0)
-        except AMACheckLicenseInactiveError:
-            for payment in self:
-                payment.write({
-                    "amacheck_state":    "failed",
-                    "amacheck_inactive": True,
-                    "amacheck_error":    False,
-                })
-            return True
-        except Exception as e:
-            for payment in self:
-                payment.write({
-                    "amacheck_state":    "failed",
-                    "amacheck_inactive": False,
-                    "amacheck_error":    str(e),
-                })
-            return True
-
-        if checks_left <= 0:
-            for payment in self:
-                payment.write({
-                    "amacheck_state":    "failed",
-                    "amacheck_inactive": False,
-                    "amacheck_error": (
-                        "You are out of eChecks. "
-                        "Please go to Settings / AMACheck to purchase more."
-                    ),
-                })
-            return True
-
-        already_sent = self.filtered(lambda p: p.amacheck_state == "sent" or p.amacheck_zil_id)
-        if already_sent:
-            names = ", ".join(p.name or str(p.id) for p in already_sent)
+        params       = self.env["ir.config_parameter"].sudo()
+        license_code = (params.get_param("account_amacheck.license_code") or "").strip()
+        if not license_code:
             raise UserError(
-                "The following payment(s) have already been sent and cannot be resent: %s" % names
+                "AMAChecks License Code is not configured. Go to Settings > AMACheck, "
+                "enter your license code and click Refresh Balance."
+            )
+
+        already_sent = self.filtered(lambda p: p.amacheck_state == "sent")
+        if already_sent:
+            raise UserError(
+                "These payments were already sent and can't be sent again: %s"
+                % ", ".join(p.name or str(p.id) for p in already_sent)
             )
 
         for payment in self:
-
             if payment.payment_type != "outbound":
-                payment.write({
-                    "amacheck_state": "failed",
-                    "amacheck_error": "AMACheck only supports outbound payments.",
-                })
+                payment._amacheck_fail("AMACheck only supports outbound payments.")
                 continue
-
             if payment.partner_type != "supplier":
-                payment.write({
-                    "amacheck_state": "failed",
-                    "amacheck_error": "AMACheck only supports vendor payments.",
-                })
+                payment._amacheck_fail("AMACheck only supports vendor payments.")
                 continue
-
             if payment.amount <= 0:
-                payment.write({
-                    "amacheck_state": "failed",
-                    "amacheck_error": "Payment amount must be greater than zero.",
-                })
+                payment._amacheck_fail("Payment amount must be greater than zero.")
                 continue
-
             if not payment.partner_id:
-                payment.write({
-                    "amacheck_state": "failed",
-                    "amacheck_error": "Payment is missing a vendor.",
-                })
+                payment._amacheck_fail("Payment is missing a vendor.")
                 continue
 
             try:
-                payment._amacheck_validate_company()
-                payment._amacheck_validate_partner(payment.partner_id)
+                payment._amacheck_check_partner_address(payment.company_id.partner_id, "Your company")
+                payment._amacheck_check_partner_address(payment.partner_id, "Vendor")
+                journal = payment._amacheck_get_bank_journal()
+                if not journal.amacheck_next_check_no:
+                    journal.amacheck_next_check_no = 10000
+                check = payment._amacheck_check_payload(journal)
+            except UserError as e:
+                payment._amacheck_fail(str(e.args[0] if e.args else e))
+                continue
 
-                bank_journal = payment._amacheck_get_bank_journal()
-
-                if active_provider == _PROVIDER_CHECKEEPER:
-                    signer = (bank_journal.amacheck_signer or "").strip()
-                    if not signer:
-                        payment.write({
-                            "amacheck_state": "failed",
-                            "amacheck_error": (
-                                "Signer is not set on journal '%s'. "
-                                "Go to Accounting > Configuration > Journals > %s > AMACheck Settings."
-                                % (bank_journal.name, bank_journal.name)
-                            ),
-                        })
-                        continue
-                    payment._amacheck_validate_journal_bank(bank_journal)
-                    payment._action_send_via_checkeeper(bank_journal, checkeeper_api_key, signer, license_code, license_api_key)
-                    continue
-
-                bank_account_id = payment._amacheck_get_or_create_bank_account_id(bank_journal)
-                partner         = payment.partner_id
-
-                result = amacheck_send_check(
-                    license_code    = license_code,
-                    bank_account_id = bank_account_id,
-                    payee_id        = partner.amacheck_payee_id or None,
-                    amount          = float(payment.amount),
-                    memo            = payment.name or "Odoo Payment",
-                    vendor          = payment._amacheck_vendor_payload(partner),
-                    api_key         = license_api_key,
+            try:
+                result = amacheck_send_check(license_code, payment._amacheck_client_ref(), check)
+            except AMACheckError as e:
+                # AMAChecks never answered. Retrying is safe: the server
+                # recognises this payment and will not mail it twice. The check
+                # number may have been used, so don't give it to the next check.
+                journal.amacheck_next_check_no = check["number"] + 1
+                payment._amacheck_fail(
+                    "%s\n\nThe check may or may not have been sent. It is safe to click "
+                    "Send Check again — AMAChecks will not mail the same payment twice." % e
                 )
+                self.env.cr.commit()
+                continue
 
-                if result.get("payeeId") and result["payeeId"] != partner.amacheck_payee_id:
-                    partner.write({"amacheck_payee_id": result["payeeId"]})
+            if result.get("checksLeft") is not None:
+                params.set_param("account_amacheck.checks_left", str(result["checksLeft"]))
 
+            if result.get("success"):
                 payment.write({
                     "amacheck_state":        "sent",
-                    "amacheck_zil_id":       result["checkId"],
-                    "amacheck_check_number": result.get("checkNumber") or False,
+                    "amacheck_zil_id":       result.get("checkId") or False,
+                    "amacheck_check_number": result.get("checkNumber") or str(check["number"]),
                     "amacheck_sent_at":      fields.Datetime.now(),
-                    "amacheck_error":        False,
+                    "amacheck_error":        (
+                        "Sandbox mode: this check was NOT mailed." if result.get("sandbox") else False
+                    ),
                     "amacheck_inactive":     False,
                 })
+                if not result.get("duplicate"):
+                    journal.amacheck_next_check_no = check["number"] + 1
 
-                if result.get("checksLeft") is not None:
-                    self.env["ir.config_parameter"].sudo().set_param(
-                        "account_amacheck.checks_left", str(result["checksLeft"])
-                    )
+            else:
+                code    = result.get("code") or "error"
+                message = result.get("error") or "Check send failed."
+                if code == "unconfirmed":
+                    # It may have been mailed with this number; don't reuse it.
+                    journal.amacheck_next_check_no = check["number"] + 1
+                    payment.write({
+                        "amacheck_state":    "unconfirmed",
+                        "amacheck_error":    message,
+                        "amacheck_inactive": False,
+                    })
+                else:
+                    payment._amacheck_fail(message, inactive=(code == "inactive"))
 
-            except Exception as e:
-                payment.write({
-                    "amacheck_state":    "failed",
-                    "amacheck_inactive": False,
-                    "amacheck_error":    str(e),
-                })
+            # A check may have been mailed: save its state and the journal's next
+            # check number now, so a later error in this batch can't roll them back.
+            self.env.cr.commit()
 
         return True
